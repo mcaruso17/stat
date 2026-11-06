@@ -8,8 +8,11 @@ const APP_NAME = 'Codice Stat';
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 const ALLOWED_EXT = ['pdf', 'doc', 'docx', 'odt', 'xls', 'xlsx', 'ods', 'csv', 'ppt', 'pptx', 'odp',
     'txt', 'md', 'png', 'jpg', 'jpeg', 'zip', 'r', 'rmd', 'py', 'ipynb', 'sas', 'do', 'sql'];
-const TOPIC_CATEGORIES = ['Lavoro', 'Concorsi', 'Nuove posizioni', 'Idee', 'Formazione', 'Varie'];
-const CATEGORY_CLASS = ['Lavoro' => 'c-sky', 'Concorsi' => 'c-coral', 'Nuove posizioni' => 'c-teal', 'Idee' => 'c-sun', 'Formazione' => 'c-lilac', 'Varie' => 'c-gray'];
+// Categorie iniziali della discussione; poi l'admin le gestisce da admin.php.
+const DEFAULT_CATEGORIES = ['Lavoro' => 'c-sky', 'Concorsi' => 'c-coral', 'Nuove posizioni' => 'c-teal', 'Idee' => 'c-sun', 'Formazione' => 'c-lilac', 'Varie' => 'c-gray'];
+const FALLBACK_CATEGORY = 'Varie'; // non eliminabile: accoglie i topic delle categorie eliminate
+const CATEGORY_COLORS = ['c-sky' => 'Blu', 'c-coral' => 'Corallo', 'c-teal' => 'Verde acqua', 'c-sun' => 'Giallo',
+    'c-lilac' => 'Viola', 'c-pink' => 'Rosa', 'c-green' => 'Verde', 'c-gray' => 'Grigio'];
 
 // Domande del cancello d'ingresso: servono almeno 2 risposte giuste su 3.
 const QUIZ = [
@@ -121,6 +124,11 @@ CREATE TABLE IF NOT EXISTS place_ratings (
     stars INTEGER NOT NULL CHECK (stars BETWEEN 1 AND 5),
     PRIMARY KEY (place_id, user_id)
 );
+CREATE TABLE IF NOT EXISTS categories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    color TEXT NOT NULL DEFAULT 'c-gray'
+);
 CREATE TABLE IF NOT EXISTS documents (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -152,6 +160,11 @@ SQL);
         $pdo->prepare('UPDATE users SET is_admin = 1, password_hash = ? WHERE id = ?')->execute([ADMIN_PASSWORD_HASH, $adminId]);
     }
     $pdo->exec("INSERT OR IGNORE INTO meta (k, v) VALUES ('admin_seeded', '1')");
+
+    if (!$pdo->query('SELECT COUNT(*) FROM categories')->fetchColumn()) {
+        $ins = $pdo->prepare('INSERT INTO categories (name, color) VALUES (?, ?)');
+        foreach (DEFAULT_CATEGORIES as $name => $color) $ins->execute([$name, $color]);
+    }
 
     $seeded = $pdo->query("SELECT v FROM meta WHERE k = 'seeded'")->fetchColumn();
     if (!$seeded) {
@@ -285,6 +298,23 @@ function weighted_score(int $n, float $sum): float
 function fmt_num(float $x): string
 {
     return number_format($x, 1, ',', '');
+}
+
+/** Categorie della discussione: nome => classe colore ("Varie" sempre in fondo). */
+function categories(): array
+{
+    static $cats = null;
+    if ($cats === null) {
+        $cats = [];
+        $rows = db()->query("SELECT name, color FROM categories ORDER BY name = '" . FALLBACK_CATEGORY . "', id")->fetchAll();
+        foreach ($rows as $r) $cats[$r['name']] = $r['color'];
+    }
+    return $cats;
+}
+
+function category_class(string $name): string
+{
+    return categories()[$name] ?? 'c-gray';
 }
 
 const MONTHS = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];

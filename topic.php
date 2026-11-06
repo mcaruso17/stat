@@ -83,7 +83,7 @@ page_start($topic['title']);
       <div class="article-head">
         <?= vote_box('topic', $id, (int)$topic['score'], (int)$topic['mine'], $back) ?>
         <div>
-          <span class="cat <?= CATEGORY_CLASS[$topic['category']] ?? 'c-gray' ?>"><?= e($topic['category']) ?></span>
+          <span class="cat <?= category_class($topic['category']) ?>"><?= e($topic['category']) ?></span>
           <h1><?= e($topic['title']) ?></h1>
           <div class="article-meta meta">
             <span class="avatar xs" style="background:<?= avatar_color($topic['author']) ?>"><?= e(initials($topic['author'])) ?></span>

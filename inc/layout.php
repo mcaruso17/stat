@@ -45,7 +45,7 @@ function page_start(string $title, bool $nav = true): void
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=7">
+<link rel="stylesheet" href="assets/style.css?v=8">
 <script>document.documentElement.classList.add('js')</script>
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 </head>

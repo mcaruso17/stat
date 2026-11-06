@@ -155,7 +155,7 @@ switch ($_POST['action'] ?? '') {
 
     case 'create_topic':
         $title = post_str('title', 200);
-        $cat = in_array($_POST['category'] ?? '', TOPIC_CATEGORIES, true) ? $_POST['category'] : 'Varie';
+        $cat = array_key_exists($_POST['category'] ?? '', categories()) ? $_POST['category'] : FALLBACK_CATEGORY;
         if ($title === '') {
             flash('Serve un titolo.', 'err');
             redirect('index.php#discussione');
@@ -300,6 +300,56 @@ switch ($_POST['action'] ?? '') {
         $pdo->prepare('DELETE FROM users WHERE id = ?')->execute([$id]);
         flash('Utente eliminato insieme ai suoi contenuti.');
         redirect('admin.php');
+
+    case 'admin_add_category':
+        require_admin();
+        $name = preg_replace('/\s+/u', ' ', post_str('name', 40));
+        $color = array_key_exists($_POST['color'] ?? '', CATEGORY_COLORS) ? $_POST['color'] : 'c-gray';
+        if (mb_strlen($name) < 2) {
+            flash('Il nome della categoria deve avere almeno 2 caratteri.', 'err');
+        } elseif (array_key_exists(mb_strtolower($name), array_change_key_case(categories()))) {
+            flash('Esiste già una categoria con questo nome.', 'err');
+        } else {
+            $pdo->prepare('INSERT INTO categories (name, color) VALUES (?, ?)')->execute([$name, $color]);
+            flash('Categoria "' . $name . '" aggiunta.');
+        }
+        redirect('admin.php#categorie');
+
+    case 'admin_edit_category':
+        require_admin();
+        $st = $pdo->prepare('SELECT name FROM categories WHERE id = ?');
+        $st->execute([$id]);
+        $old = $st->fetchColumn();
+        $name = preg_replace('/\s+/u', ' ', post_str('name', 40));
+        $color = array_key_exists($_POST['color'] ?? '', CATEGORY_COLORS) ? $_POST['color'] : 'c-gray';
+        if ($old === false) redirect('admin.php#categorie');
+        if ($old === FALLBACK_CATEGORY) $name = FALLBACK_CATEGORY; // si può solo ricolorare
+        $st = $pdo->prepare('SELECT 1 FROM categories WHERE name = ? AND id != ?');
+        $st->execute([$name, $id]);
+        if (mb_strlen($name) < 2 || $st->fetchColumn()) {
+            flash('Nome non valido o già usato da un\'altra categoria.', 'err');
+            redirect('admin.php#categorie');
+        }
+        $pdo->beginTransaction();
+        $pdo->prepare('UPDATE categories SET name = ?, color = ? WHERE id = ?')->execute([$name, $color, $id]);
+        $pdo->prepare('UPDATE topics SET category = ? WHERE category = ?')->execute([$name, $old]);
+        $pdo->commit();
+        flash('Categoria aggiornata.');
+        redirect('admin.php#categorie');
+
+    case 'admin_delete_category':
+        require_admin();
+        $st = $pdo->prepare('SELECT name FROM categories WHERE id = ?');
+        $st->execute([$id]);
+        $old = $st->fetchColumn();
+        if ($old !== false && $old !== FALLBACK_CATEGORY) {
+            $pdo->beginTransaction();
+            $pdo->prepare('UPDATE topics SET category = ? WHERE category = ?')->execute([FALLBACK_CATEGORY, $old]);
+            $pdo->prepare('DELETE FROM categories WHERE id = ?')->execute([$id]);
+            $pdo->commit();
+            flash('Categoria eliminata. I suoi topic sono finiti in "' . FALLBACK_CATEGORY . '".');
+        }
+        redirect('admin.php#categorie');
 
     case 'update_bio':
         $pdo->prepare('UPDATE users SET bio = ? WHERE id = ?')->execute([post_str('bio', 400), $uid]);

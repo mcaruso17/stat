@@ -66,7 +66,7 @@ function place_fields(?array $pl = null): void
 
 // Discussione
 $sort = ($_GET['sort'] ?? 'new') === 'top' ? 'top' : 'new';
-$cat = in_array($_GET['cat'] ?? '', TOPIC_CATEGORIES, true) ? $_GET['cat'] : '';
+$cat = array_key_exists($_GET['cat'] ?? '', categories()) ? $_GET['cat'] : '';
 $where = $cat ? 'WHERE t.category = :cat' : '';
 $order = $sort === 'top' ? 'score DESC, t.created_at DESC' : 't.created_at DESC';
 $st = $pdo->prepare("SELECT t.*, u.name AS author,
@@ -251,7 +251,7 @@ intro(
       </div>
       <div class="pills">
         <a class="pill<?= !$cat ? ' on' : '' ?>" href="<?= e($qs(['cat' => ''])) ?>">Tutti</a>
-        <?php foreach (TOPIC_CATEGORIES as $c): ?>
+        <?php foreach (array_keys(categories()) as $c): ?>
         <a class="pill<?= $cat === $c ? ' on' : '' ?>" href="<?= e($qs(['cat' => $c])) ?>"><?= e($c) ?></a>
         <?php endforeach; ?>
       </div>
@@ -262,7 +262,7 @@ intro(
       <article class="row topic">
         <?= vote_box('topic', $tid, (int)$t['score'], (int)$t['mine'], 'index.php' . $qs([])) ?>
         <a class="topic-link" href="topic.php?id=<?= $tid ?>">
-          <span class="cat <?= CATEGORY_CLASS[$t['category']] ?? 'c-gray' ?>"><?= e($t['category']) ?></span>
+          <span class="cat <?= category_class($t['category']) ?>"><?= e($t['category']) ?></span>
           <h3><?= e($t['title']) ?></h3>
           <?php if ($t['body']): ?><p class="excerpt"><?= e(mb_strimwidth($t['body'], 0, 200, '…')) ?></p><?php endif; ?>
           <span class="meta"><?= e($t['author']) ?> · <?= ago((int)$t['created_at']) ?></span>
@@ -343,7 +343,7 @@ intro(
     <input type="hidden" name="action" value="create_topic">
     <label>Titolo <input name="title" required maxlength="200"></label>
     <label>Categoria
-      <select name="category"><?php foreach (TOPIC_CATEGORIES as $c): ?><option><?= e($c) ?></option><?php endforeach; ?></select>
+      <select name="category"><?php foreach (array_keys(categories()) as $c): ?><option><?= e($c) ?></option><?php endforeach; ?></select>
     </label>
     <label>Testo <textarea name="body" rows="6" maxlength="10000" placeholder="Idee, domande, link a bandi o concorsi..."></textarea></label>
     <button class="btn">Pubblica</button>

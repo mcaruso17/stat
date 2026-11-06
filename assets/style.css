@@ -431,3 +431,15 @@ dialog.sheet::backdrop { background: rgba(0, 0, 0, .32); backdrop-filter: blur(8
   dialog.sheet[open], dialog.sheet::backdrop, .toast { animation: none; }
   ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
 }
+
+/* Categorie (admin) */
+.c-pink { color: #e0457b; } .c-green { color: #17924e; }
+.admin-sub { font-size: 1.3rem; margin: 40px 0 12px; }
+.admin-sub:first-of-type { margin-top: 0; }
+.cat-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: currentColor; margin-right: 8px; vertical-align: 1px; }
+.cats-table .cat { font-size: .95rem; }
+.cat-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.cat-form input { width: 220px; padding: 7px 12px; font-size: 14px; border-radius: 10px; }
+.cat-form input[readonly] { background: var(--fill); color: var(--text-3); }
+.cat-form select { width: 150px; padding: 7px 36px 7px 12px; font-size: 14px; border-radius: 10px; }
+.add-row td { background: #fafafc; }
