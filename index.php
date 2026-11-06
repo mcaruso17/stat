@@ -70,7 +70,7 @@ function event_card(array $ev, int $uid, bool $isPast = false): void
           </form>
           <?php endif; ?>
           <span class="muted" title="<?= e($ev['going_names'] ?? '') ?>"><?= (int)$ev['n_going'] ?> partecipant<?= (int)$ev['n_going'] === 1 ? 'e' : 'i' ?><?= $ev['going_names'] ? ': ' . e($ev['going_names']) : '' ?></span>
-          <?php if ((int)$ev['user_id'] === $uid): ?><?= delete_button('delete_event', (int)$ev['id'], 'index.php#eventi') ?><?php endif; ?>
+          <?php if (can_manage($ev['user_id'])): ?><?= delete_button('delete_event', (int)$ev['id'], 'index.php#eventi') ?><?php endif; ?>
         </div>
       </div>
     </article>
@@ -205,7 +205,7 @@ page_start('Home');
           <h3><a href="download.php?id=<?= (int)$d['id'] ?>"><?= e($d['title']) ?></a></h3>
           <?php if ($d['description']): ?><p><?= rich($d['description']) ?></p><?php endif; ?>
           <div class="meta"><?= e($d['original_name']) ?> · <?= fmt_size((int)$d['size']) ?> · <?= e($d['author']) ?> · <?= ago((int)$d['created_at']) ?>
-            <?php if ((int)$d['user_id'] === $uid): ?> · <?= delete_button('delete_doc', (int)$d['id'], 'index.php#materiali') ?><?php endif; ?>
+            <?php if (can_manage($d['user_id'])): ?> · <?= delete_button('delete_doc', (int)$d['id'], 'index.php#materiali') ?><?php endif; ?>
           </div>
         </div>
         <a class="btn sm ghost" href="download.php?id=<?= (int)$d['id'] ?>">Scarica</a>
@@ -225,7 +225,7 @@ page_start('Home');
       <?php foreach ($members as $m): $isMe = (int)$m['id'] === $uid; ?>
       <article class="card member<?= $isMe ? ' me' : '' ?>">
         <span class="avatar" style="background:<?= avatar_color($m['name']) ?>"><?= e(initials($m['name'])) ?></span>
-        <h3><?= e($m['name']) ?><?= $isMe ? ' <small>(tu)</small>' : '' ?></h3>
+        <h3><?= e($m['name']) ?><?= $isMe ? ' <small>(tu)</small>' : '' ?><?= $m['is_admin'] ? ' <span class="badge">admin</span>' : '' ?></h3>
         <?php if ($m['bio']): ?><p><?= e($m['bio']) ?></p><?php elseif (!$isMe): ?><p class="muted">Nessuna presentazione.</p><?php endif; ?>
         <p class="meta">Dal <?= fmt_day((int)$m['created_at']) ?> · <?= (int)$m['n_topics'] ?> topic · <?= (int)$m['n_comments'] ?> commenti · <?= (int)$m['n_docs'] ?> file</p>
         <?php if ($isMe): ?>

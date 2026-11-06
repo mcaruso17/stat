@@ -16,11 +16,21 @@ function back(string $default): string
     return preg_match('~^(index|topic)\.php[?#a-zA-Z0-9=&%_\-+.]*$~', $b) ? $b : $default;
 }
 
+/** L'utente è autore del contenuto, oppure è admin. */
 function owned(PDO $pdo, string $table, int $id, int $uid): bool
 {
-    $st = $pdo->prepare("SELECT 1 FROM $table WHERE id = ? AND user_id = ?");
-    $st->execute([$id, $uid]);
-    return (bool)$st->fetchColumn();
+    $st = $pdo->prepare("SELECT user_id FROM $table WHERE id = ?");
+    $st->execute([$id]);
+    $owner = $st->fetchColumn();
+    return $owner !== false && can_manage($owner);
+}
+
+function require_admin(): void
+{
+    if (!is_admin()) {
+        http_response_code(403);
+        exit('Solo per amministratori.');
+    }
 }
 
 switch ($_POST['action'] ?? '') {
@@ -159,14 +169,51 @@ switch ($_POST['action'] ?? '') {
         redirect('index.php#materiali');
 
     case 'delete_doc':
-        $st = $pdo->prepare('SELECT stored_name FROM documents WHERE id = ? AND user_id = ?');
-        $st->execute([$id, $uid]);
-        if ($stored = $st->fetchColumn()) {
+        $st = $pdo->prepare('SELECT stored_name FROM documents WHERE id = ?');
+        $st->execute([$id]);
+        if (owned($pdo, 'documents', $id, $uid) && ($stored = $st->fetchColumn())) {
             @unlink(UPLOAD_DIR . '/' . $stored);
             $pdo->prepare('DELETE FROM documents WHERE id = ?')->execute([$id]);
             flash('Documento eliminato.');
         }
         redirect('index.php#materiali');
+
+    case 'admin_reset_password':
+        require_admin();
+        $pass = (string)($_POST['password'] ?? '');
+        if (mb_strlen($pass) < 4) {
+            flash('La nuova password deve avere almeno 4 caratteri.', 'err');
+        } else {
+            $st = $pdo->prepare('UPDATE users SET password_hash = ? WHERE id = ?');
+            $st->execute([password_hash($pass, PASSWORD_DEFAULT), $id]);
+            flash($st->rowCount() ? 'Password aggiornata. Comunicala tu all\'utente.' : 'Utente non trovato.', $st->rowCount() ? 'ok' : 'err');
+        }
+        redirect('admin.php');
+
+    case 'admin_toggle_admin':
+        require_admin();
+        if ($id === $uid) {
+            flash('Non puoi togliere i permessi a te stesso.', 'err');
+        } else {
+            $pdo->prepare('UPDATE users SET is_admin = 1 - is_admin WHERE id = ?')->execute([$id]);
+            flash('Permessi aggiornati.');
+        }
+        redirect('admin.php');
+
+    case 'admin_delete_user':
+        require_admin();
+        if ($id === $uid) {
+            flash('Non puoi eliminare il tuo account da qui.', 'err');
+            redirect('admin.php');
+        }
+        $st = $pdo->prepare('SELECT stored_name FROM documents WHERE user_id = ?');
+        $st->execute([$id]);
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $stored) {
+            @unlink(UPLOAD_DIR . '/' . $stored);
+        }
+        $pdo->prepare('DELETE FROM users WHERE id = ?')->execute([$id]);
+        flash('Utente eliminato insieme ai suoi contenuti.');
+        redirect('admin.php');
 
     case 'update_bio':
         $pdo->prepare('UPDATE users SET bio = ? WHERE id = ?')->execute([post_str('bio', 400), $uid]);

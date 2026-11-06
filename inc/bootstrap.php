@@ -18,6 +18,11 @@ const QUIZ = [
 ];
 const QUIZ_MIN_CORRECT = 2;
 
+// Amministratore creato alla prima inizializzazione del database.
+// Nel codice c'è solo l'hash bcrypt, non la password in chiaro.
+const ADMIN_NAME = 'carusowski';
+const ADMIN_PASSWORD_HASH = '$2y$12$AfETVGhqGH7pcjalkm5xp.YzOWhUCPc1n/IoL4eYYAjnmwiDw4rVC';
+
 date_default_timezone_set('Europe/Rome');
 
 session_set_cookie_params([
@@ -104,6 +109,22 @@ CREATE TABLE IF NOT EXISTS documents (
     created_at INTEGER NOT NULL
 );
 SQL);
+
+    $cols = array_column($pdo->query('PRAGMA table_info(users)')->fetchAll(), 'name');
+    if (!in_array('is_admin', $cols, true)) {
+        $pdo->exec('ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0');
+    }
+    $st = $pdo->prepare('SELECT id FROM users WHERE name = ?');
+    $st->execute([ADMIN_NAME]);
+    $adminId = $st->fetchColumn();
+    if (!$adminId) {
+        $pdo->prepare('INSERT INTO users (name, password_hash, is_admin, created_at) VALUES (?, ?, 1, ?)')
+            ->execute([ADMIN_NAME, ADMIN_PASSWORD_HASH, time()]);
+    } elseif (!$pdo->query("SELECT v FROM meta WHERE k = 'admin_seeded'")->fetchColumn()) {
+        // Database esistente: l'account con quel nome diventa admin con la password configurata.
+        $pdo->prepare('UPDATE users SET is_admin = 1, password_hash = ? WHERE id = ?')->execute([ADMIN_PASSWORD_HASH, $adminId]);
+    }
+    $pdo->exec("INSERT OR IGNORE INTO meta (k, v) VALUES ('admin_seeded', '1')");
 
     $seeded = $pdo->query("SELECT v FROM meta WHERE k = 'seeded'")->fetchColumn();
     if (!$seeded) {
@@ -195,6 +216,18 @@ function require_login(): array
         redirect(empty($_SESSION['quiz_passed']) ? 'gate.php' : 'auth.php');
     }
     return $u;
+}
+
+function is_admin(): bool
+{
+    return (bool)(current_user()['is_admin'] ?? false);
+}
+
+/** Può modificare/eliminare un contenuto: l'autore o un admin. */
+function can_manage($ownerId): bool
+{
+    $u = current_user();
+    return $u && ((int)$u['id'] === (int)$ownerId || !empty($u['is_admin']));
 }
 
 const MONTHS = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];

@@ -11,6 +11,17 @@ PHP 8.1+ e SQLite, nessuna dipendenza e nessun build step.
 
 Domande e risposte stanno in `inc/bootstrap.php` (costante `QUIZ`).
 
+## Amministratore
+
+L'account admin (`carusowski`) viene creato automaticamente alla prima visita, quando il database viene inizializzato. Nel codice è salvato solo l'hash bcrypt della password (`ADMIN_PASSWORD_HASH` in `inc/bootstrap.php`), non la password in chiaro.
+
+L'admin può:
+- eliminare qualsiasi evento, topic, commento o documento;
+- da `admin.php`: reimpostare la password di un utente, nominare o rimuovere altri admin, eliminare un account con tutti i suoi contenuti.
+
+Per cambiare la password admin: generare un nuovo hash con
+`php -r 'echo password_hash("NUOVA", PASSWORD_DEFAULT);'` e reimpostarla dalla pagina admin (l'hash nel codice serve solo alla prima creazione).
+
 ## Struttura
 
 | File | Ruolo |
@@ -18,6 +29,7 @@ Domande e risposte stanno in `inc/bootstrap.php` (costante `QUIZ`).
 | `index.php` | Home con le sezioni Eventi, Discussione, Materiali, Membri |
 | `topic.php` | Singolo topic con commenti annidati e voti |
 | `action.php` | Tutte le azioni POST (eventi, topic, commenti, voti, upload) |
+| `admin.php` | Gestione utenti, solo admin |
 | `download.php` | Download dei documenti, solo per utenti loggati |
 | `inc/` | Configurazione, database, layout (accesso web negato) |
 | `data/` | Database SQLite e file caricati (accesso web negato) |

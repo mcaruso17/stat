@@ -212,3 +212,14 @@ input[type=file] { padding: 8px; }
   .doc { flex-wrap: wrap; }
   .section { padding: 40px 0; }
 }
+
+/* Admin */
+.badge { display: inline-block; vertical-align: middle; font: 700 .65rem var(--display); text-transform: uppercase; letter-spacing: .08em; background: var(--ink); color: var(--sun); padding: 2px 7px; border-radius: 4px; }
+.mainnav a.nav-admin { color: var(--sun); }
+.admin-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.admin-table th, .admin-table td { text-align: left; padding: 12px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.admin-table th { font: 700 .75rem var(--display); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.admin-actions { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.admin-actions form.reset { display: flex; gap: 6px; }
+.admin-actions form.reset input { width: 150px; padding: 5px 8px; }
+.table-scroll { overflow-x: auto; }

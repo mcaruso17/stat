@@ -61,7 +61,7 @@ function render_comments(array $children, int $parent, int $topicId, int $uid, s
                 <summary class="linkbtn">Rispondi</summary>
                 <?php comment_form($topicId, $cid, 'Rispondi a ' . $c['author'] . '...'); ?>
               </details>
-              <?php if ((int)$c['user_id'] === $uid): ?><?= delete_button('delete_comment', $cid, $back . '#commenti') ?><?php endif; ?>
+              <?php if (can_manage($c['user_id'])): ?><?= delete_button('delete_comment', $cid, $back . '#commenti') ?><?php endif; ?>
             </div>
             <?php if (!empty($children[$cid])): ?>
             <div class="replies<?= $depth >= 5 ? ' flat' : '' ?>">
@@ -85,7 +85,7 @@ page_start($topic['title']);
         <p class="label"><?= e($topic['category']) ?></p>
         <h1><?= e($topic['title']) ?></h1>
         <div class="meta"><?= e($topic['author']) ?> · <?= ago((int)$topic['created_at']) ?>
-          <?php if ((int)$topic['user_id'] === $uid): ?> · <?= delete_button('delete_topic', $id, 'index.php#discussione', 'Elimina topic') ?><?php endif; ?>
+          <?php if (can_manage($topic['user_id'])): ?> · <?= delete_button('delete_topic', $id, 'index.php#discussione', 'Elimina topic') ?><?php endif; ?>
         </div>
         <?php if ($topic['body']): ?><div class="topic-text"><?= rich($topic['body']) ?></div><?php endif; ?>
       </div>

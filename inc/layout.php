@@ -32,6 +32,7 @@ function page_start(string $title, bool $nav = true): void
       <a href="index.php#discussione">Discussione</a>
       <a href="index.php#materiali">Materiali</a>
       <a href="index.php#membri">Membri</a>
+      <?php if (!empty($u['is_admin'])): ?><a href="admin.php" class="nav-admin">Admin</a><?php endif; ?>
     </nav>
     <div class="userbox">
       <span class="avatar sm" style="background:<?= avatar_color($u['name']) ?>"><?= e(initials($u['name'])) ?></span>
