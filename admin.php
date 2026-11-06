@@ -17,24 +17,18 @@ $users = db()->query('SELECT u.*,
 
 page_start('Amministrazione');
 ?>
-<section class="hero hero-small">
-  <div class="wrap">
-    <p class="kicker">Amministrazione</p>
-    <h1>Gestione utenti</h1>
-    <p class="lead">Da qui reimposti le password dimenticate, nomini altri admin ed elimini account. Come admin puoi anche eliminare qualsiasi evento, topic, commento o documento direttamente dalle pagine del sito.</p>
-  </div>
-</section>
 <section class="section">
   <div class="wrap">
-    <div class="card table-scroll">
+    <?php section_head('Amministrazione', 'Gestione utenti.', 'Reimposta le password dimenticate, nomina altri admin, elimina account. Puoi anche eliminare qualsiasi contenuto direttamente dalle pagine del sito.'); ?>
+    <div class="panel table-scroll">
       <table class="admin-table">
         <thead><tr><th>Utente</th><th>Iscritto</th><th>Attività</th><th>Azioni</th></tr></thead>
         <tbody>
         <?php foreach ($users as $u): $self = (int)$u['id'] === (int)$me['id']; ?>
           <tr>
-            <td><b><?= e($u['name']) ?></b><?= $u['is_admin'] ? ' <span class="badge">admin</span>' : '' ?></td>
-            <td><?= fmt_day((int)$u['created_at']) ?></td>
-            <td><?= (int)$u['n_topics'] ?> topic · <?= (int)$u['n_comments'] ?> commenti · <?= (int)$u['n_docs'] ?> file</td>
+            <td><span class="admin-user"><span class="avatar xs" style="background:<?= avatar_color($u['name']) ?>"><?= e(initials($u['name'])) ?></span><?= e($u['name']) ?><?= $u['is_admin'] ? ' <span class="badge">Admin</span>' : '' ?></span></td>
+            <td class="muted"><?= fmt_day((int)$u['created_at']) ?></td>
+            <td class="muted"><?= (int)$u['n_topics'] ?> topic · <?= (int)$u['n_comments'] ?> commenti · <?= (int)$u['n_docs'] ?> file</td>
             <td>
               <div class="admin-actions">
                 <form method="post" action="action.php" class="reset">
@@ -42,7 +36,7 @@ page_start('Amministrazione');
                   <input type="hidden" name="action" value="admin_reset_password">
                   <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
                   <input name="password" placeholder="Nuova password" minlength="4" required autocomplete="off">
-                  <button class="btn sm ghost">Reimposta</button>
+                  <button class="btn sm secondary">Reimposta</button>
                 </form>
                 <?php if (!$self): ?>
                 <form method="post" action="action.php" class="inline">

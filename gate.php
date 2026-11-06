@@ -27,29 +27,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 page_start('Accesso', false);
 ?>
-<?php if (!$error) intro('', '<a class="btn big" href="#quiz">Entra</a>'); ?>
-<section class="hero hero-gate" id="quiz">
-  <div class="wrap hero-grid">
-    <div>
-      <p class="kicker">Area riservata</p>
-      <h1>Per assicurarci di avere qui solo codice Stat, rispondi alle seguenti domande</h1>
-      <p class="lead">Ne bastano due giuste su tre. Poi ti registri con nome e password e sei dentro.</p>
-      <p class="muted">Hai già un account? <a href="auth.php?mode=login">Accedi</a></p>
-    </div>
-    <div class="shapes" aria-hidden="true">
-      <span class="shape tri"></span><span class="shape half"></span><span class="shape dot"></span>
-    </div>
-  </div>
-</section>
-
-<section class="section">
-  <div class="wrap narrow">
-    <?php if ($error): ?><div class="alert"><?= e($error) ?></div><?php endif; ?>
-    <form method="post" class="quiz">
+<?php if (!$error) intro('', '<a class="btn big light" href="#quiz">Entra</a>'); ?>
+<section class="section gate" id="quiz">
+  <div class="wrap">
+    <?php section_head('Area riservata', 'Per assicurarci di avere qui solo codice Stat, rispondi alle seguenti domande.',
+        'Ne bastano due giuste su tre. Poi ti registri con nome e password e sei dentro.'); ?>
+    <?php if ($error): ?><div class="alert"><?= icon('info') ?><span><?= e($error) ?></span></div><?php endif; ?>
+    <form method="post" action="gate.php" class="quiz">
       <?= csrf_field() ?>
       <?php foreach (QUIZ as $i => $q): ?>
-      <fieldset class="card quiz-q">
-        <legend><span class="qnum"><?= $i + 1 ?></span><?= e($q['q']) ?></legend>
+      <fieldset class="tile quiz-q">
+        <legend><span class="qnum">Domanda <?= $i + 1 ?> di <?= count(QUIZ) ?></span><span class="qtext"><?= e($q['q']) ?></span></legend>
         <div class="options">
           <?php foreach ($q['options'] as $j => $opt): ?>
           <label class="option">
@@ -60,7 +48,10 @@ page_start('Accesso', false);
         </div>
       </fieldset>
       <?php endforeach; ?>
-      <button class="btn big">Verifica le risposte</button>
+      <div class="quiz-submit">
+        <button class="btn big">Verifica le risposte</button>
+        <p class="muted small" style="margin-top:18px">Hai già un account? <a href="auth.php?mode=login">Accedi</a></p>
+      </div>
     </form>
   </div>
 </section>

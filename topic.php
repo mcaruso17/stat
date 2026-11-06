@@ -54,7 +54,7 @@ function render_comments(array $children, int $parent, int $topicId, int $uid, s
         <div class="comment" id="c<?= $cid ?>">
           <?= vote_box('comment', $cid, (int)$c['score'], (int)$c['mine'], $back . '#c' . $cid) ?>
           <div class="comment-main">
-            <p class="meta"><b><?= e($c['author']) ?></b> · <?= ago((int)$c['created_at']) ?></p>
+            <div class="comment-head"><span class="avatar xs" style="background:<?= avatar_color($c['author']) ?>"><?= e(initials($c['author'])) ?></span><b><?= e($c['author']) ?></b><span class="meta"><?= ago((int)$c['created_at']) ?></span></div>
             <div class="comment-text"><?= rich($c['body']) ?></div>
             <div class="comment-actions">
               <details>
@@ -78,26 +78,32 @@ page_start($topic['title']);
 ?>
 <section class="section">
   <div class="wrap narrow">
-    <p><a href="index.php#discussione" class="back">← Torna alla discussione</a></p>
-    <article class="card topic topic-full">
-      <?= vote_box('topic', $id, (int)$topic['score'], (int)$topic['mine'], $back) ?>
-      <div class="topic-body">
-        <p class="label"><?= e($topic['category']) ?></p>
-        <h1><?= e($topic['title']) ?></h1>
-        <div class="meta"><?= e($topic['author']) ?> · <?= ago((int)$topic['created_at']) ?>
-          <?php if (can_manage($topic['user_id'])): ?> · <?= delete_button('delete_topic', $id, 'index.php#discussione', 'Elimina topic') ?><?php endif; ?>
+    <a href="index.php#discussione" class="back"><?= icon('left') ?>Discussione</a>
+    <article class="tile article">
+      <div class="article-head">
+        <?= vote_box('topic', $id, (int)$topic['score'], (int)$topic['mine'], $back) ?>
+        <div>
+          <span class="cat <?= CATEGORY_CLASS[$topic['category']] ?? 'c-gray' ?>"><?= e($topic['category']) ?></span>
+          <h1><?= e($topic['title']) ?></h1>
+          <div class="article-meta meta">
+            <span class="avatar xs" style="background:<?= avatar_color($topic['author']) ?>"><?= e(initials($topic['author'])) ?></span>
+            <span><?= e($topic['author']) ?> · <?= ago((int)$topic['created_at']) ?></span>
+            <?php if (can_manage($topic['user_id'])): ?><?= delete_button('delete_topic', $id, 'index.php#discussione', 'Elimina topic') ?><?php endif; ?>
+          </div>
         </div>
-        <?php if ($topic['body']): ?><div class="topic-text"><?= rich($topic['body']) ?></div><?php endif; ?>
       </div>
+      <?php if ($topic['body']): ?><div class="article-text"><?= rich($topic['body']) ?></div><?php endif; ?>
     </article>
 
     <h2 id="commenti" class="comments-title"><?= count($all) ?> comment<?= count($all) === 1 ? 'o' : 'i' ?></h2>
-    <div class="card">
+    <div class="tile composer-tile">
       <?php comment_form($id, null, 'Cosa ne pensi?'); ?>
     </div>
-    <div class="comments">
+    <?php if ($all): ?>
+    <div class="panel comments">
       <?php render_comments($children, 0, $id, $uid, $back); ?>
     </div>
+    <?php endif; ?>
   </div>
 </section>
 <?php page_end();

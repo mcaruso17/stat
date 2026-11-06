@@ -49,16 +49,16 @@ function place_fields(?array $pl = null): void
     <label>Cerca su Google Maps
       <span class="maps-search">
         <input name="name" required maxlength="140" placeholder="Es. Trattoria Da Enzo, Trastevere" autocomplete="off" data-maps-query value="<?= e($pl['name'] ?? '') ?>">
-        <a class="btn sm ghost" href="<?= e($pl ? maps_search_url($pl['name']) : 'https://www.google.com/maps') ?>" target="_blank" rel="noopener noreferrer" data-maps-open>Apri Maps ↗</a>
+        <a class="btn sm secondary" href="<?= e($pl ? maps_search_url($pl['name']) : 'https://www.google.com/maps') ?>" target="_blank" rel="noopener noreferrer" data-maps-open>Apri Maps <?= icon('arrow') ?></a>
       </span>
     </label>
     <div class="maps-preview" data-maps-preview hidden>
       <iframe title="Anteprima Google Maps" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
     </div>
-    <label>Link Google Maps <small class="muted">facoltativo: incolla il link "Condividi" del posto per essere precisi</small>
+    <label>Link Google Maps <small>Facoltativo. Incolla il link "Condividi" del posto per essere precisi.</small>
       <input name="maps_url" type="url" maxlength="500" placeholder="https://maps.app.goo.gl/..." value="<?= e($pl && $pl['maps_url'] !== maps_search_url($pl['name']) ? $pl['maps_url'] : '') ?>">
     </label>
-    <label>Perché questo posto? <small class="muted">facoltativo</small>
+    <label>Perché questo posto? <small>Facoltativo.</small>
       <input name="note" maxlength="300" placeholder="Prezzi, capienza, comodo dalla metro..." value="<?= e($pl['note'] ?? '') ?>">
     </label>
     <?php
@@ -94,146 +94,145 @@ function event_card(array $ev, int $uid, array $places, bool $isPast = false): v
     $ts = strtotime($ev['event_date']);
     $eid = (int)$ev['id'];
     $back = 'index.php#ev' . $eid;
+    $going = $ev['going_names'] ? explode(', ', $ev['going_names']) : [];
     ?>
-    <article class="card event<?= $isPast ? ' past' : '' ?>" id="ev<?= $eid ?>">
-      <div class="datebox">
-        <span class="d"><?= date('j', $ts) ?></span>
-        <span class="m"><?= MONTHS[(int)date('n', $ts) - 1] ?></span>
-        <span class="y"><?= date('Y', $ts) ?></span>
-      </div>
-      <div class="event-body">
-        <p class="label"><?= e(WEEKDAYS[(int)date('w', $ts)]) ?><?= $ev['event_time'] ? ' · ore ' . e($ev['event_time']) : '' ?><?php if ($ev['location']): ?> · <?php if ($ev['location_url']): ?><a href="<?= e($ev['location_url']) ?>" target="_blank" rel="noopener noreferrer">📍 <?= e($ev['location']) ?></a><?php else: ?><?= e($ev['location']) ?><?php endif; ?><?php endif; ?></p>
-        <h3><?= e($ev['title']) ?></h3>
-        <?php if ($ev['description']): ?><p><?= rich($ev['description']) ?></p><?php endif; ?>
-        <div class="event-foot">
-          <?php if (!$isPast): ?>
-          <form method="post" action="action.php" class="inline">
-            <?= csrf_field() ?>
-            <input type="hidden" name="action" value="rsvp">
-            <input type="hidden" name="id" value="<?= (int)$ev['id'] ?>">
-            <button class="btn sm <?= $ev['going'] ? 'on' : 'ghost' ?>"><?= $ev['going'] ? '✓ Ci sono' : 'Partecipo' ?></button>
-          </form>
-          <?php endif; ?>
-          <span class="muted" title="<?= e($ev['going_names'] ?? '') ?>"><?= (int)$ev['n_going'] ?> partecipant<?= (int)$ev['n_going'] === 1 ? 'e' : 'i' ?><?= $ev['going_names'] ? ': ' . e($ev['going_names']) : '' ?></span>
-          <?php if (can_manage($ev['user_id'])): ?><?= delete_button('delete_event', (int)$ev['id'], 'index.php#eventi') ?><?php endif; ?>
+    <article class="tile event<?= $isPast ? ' past' : '' ?>" id="ev<?= $eid ?>">
+      <div class="event-top">
+        <div class="cal" aria-hidden="true">
+          <span class="cal-m"><?= MONTHS[(int)date('n', $ts) - 1] ?></span>
+          <span class="cal-d"><?= date('j', $ts) ?></span>
         </div>
-
-        <div class="places">
-          <div class="places-head">
-            <p class="places-title">Luoghi proposti <span><?= count($places) ?></span></p>
-            <button type="button" class="help-btn" data-help="voting-help" aria-haspopup="dialog">ⓘ Come funziona</button>
-          </div>
-          <?php if (!$places && !$isPast): ?><p class="muted small">Nessuna proposta per ora. Sii il primo!</p><?php endif; ?>
-          <?php if ($places): ?>
-          <ul class="place-list">
-            <?php foreach ($places as $pl): $chosen = $ev['location_url'] === $pl['maps_url'] && $ev['location'] === $pl['name']; ?>
-            <li class="place<?= $chosen ? ' chosen' : '' ?>">
-              <div class="place-score" title="Punteggio ponderato: media bayesiana che premia i luoghi votati da più persone">
-                <b><?= (int)$pl['n_ratings'] ? fmt_num($pl['score']) : '–' ?></b>
-                <span>punti</span>
-              </div>
-              <div class="place-body">
-                <a class="place-name" href="<?= e($pl['maps_url']) ?>" target="_blank" rel="noopener noreferrer"><?= e($pl['name']) ?> <span aria-hidden="true">↗</span></a>
-                <?php if ($chosen): ?><span class="badge">scelto</span><?php endif; ?>
-                <?php if ($pl['note']): ?><p class="place-note"><?= e($pl['note']) ?></p><?php endif; ?>
-                <div class="rating">
-                  <form method="post" action="action.php" class="stars" aria-label="Il tuo voto">
-                    <?= csrf_field() ?>
-                    <input type="hidden" name="action" value="rate_place">
-                    <input type="hidden" name="id" value="<?= (int)$pl['id'] ?>">
-                    <?php for ($s = 5; $s >= 1; $s--): // ordine inverso per l'effetto hover in CSS ?>
-                    <button name="stars" value="<?= $s ?>" class="star<?= $s <= (int)$pl['my_stars'] ? ' on' : '' ?>"
-                      title="<?= (int)$pl['my_stars'] === $s ? 'Togli il tuo voto' : $s . ' stell' . ($s === 1 ? 'a' : 'e') ?>">★</button>
-                    <?php endfor; ?>
-                  </form>
-                  <span class="meta">
-                    <?php if ((int)$pl['n_ratings']): ?>media <?= fmt_num($pl['avg']) ?> · <?= (int)$pl['n_ratings'] ?> vot<?= (int)$pl['n_ratings'] === 1 ? 'o' : 'i' ?><?php else: ?>nessun voto<?php endif; ?>
-                    <?php if ($pl['my_stars']): ?> · tu: <?= (int)$pl['my_stars'] ?>★<?php endif; ?>
-                  </span>
-                </div>
-                <div class="meta">proposto da <?= e($pl['author']) ?>
-                  <?php if (!$isPast && !$chosen && can_manage($ev['user_id'])): ?> ·
-                  <form method="post" action="action.php" class="inline">
-                    <?= csrf_field() ?>
-                    <input type="hidden" name="action" value="choose_place">
-                    <input type="hidden" name="id" value="<?= (int)$pl['id'] ?>">
-                    <button class="linkbtn">Scegli questo</button>
-                  </form>
-                  <?php endif; ?>
-                  <?php if (can_manage($pl['user_id'])): ?> · <?= delete_button('delete_place', (int)$pl['id'], $back) ?><?php endif; ?>
-                </div>
-                <?php if (!$isPast && can_manage($pl['user_id'])): ?>
-                <details class="edit-place">
-                  <summary class="linkbtn">Modifica</summary>
-                  <form method="post" action="action.php" class="form place-form">
-                    <?= csrf_field() ?>
-                    <input type="hidden" name="action" value="edit_place">
-                    <input type="hidden" name="id" value="<?= (int)$pl['id'] ?>">
-                    <?php place_fields($pl); ?>
-                    <p class="muted small">Se cambi il nome del posto i voti ricevuti si azzerano: di fatto è una nuova proposta.</p>
-                    <button class="btn sm">Salva modifiche</button>
-                  </form>
-                </details>
-                <?php endif; ?>
-              </div>
-            </li>
-            <?php endforeach; ?>
-          </ul>
+        <div class="event-main">
+          <p class="event-when"><?= e(ucfirst(WEEKDAYS[(int)date('w', $ts)])) ?> <?= date('j', $ts) ?> <?= MONTHS_LONG[(int)date('n', $ts) - 1] ?> <?= date('Y', $ts) ?><?= $ev['event_time'] ? ' · ore ' . e($ev['event_time']) : '' ?></p>
+          <h3><?= e($ev['title']) ?></h3>
+          <?php if ($ev['location']): ?>
+          <p class="event-where"><?= icon('pin') ?>
+            <?php if ($ev['location_url']): ?><a href="<?= e($ev['location_url']) ?>" target="_blank" rel="noopener noreferrer"><?= e($ev['location']) ?> <?= icon('arrow', 'tiny') ?></a><?php else: ?><span><?= e($ev['location']) ?></span><?php endif; ?>
+          </p>
           <?php endif; ?>
+        </div>
+      </div>
+      <?php if ($ev['description']): ?><p class="event-desc"><?= rich($ev['description']) ?></p><?php endif; ?>
 
-          <?php if (!$isPast): ?>
-          <details class="propose">
-            <summary class="linkbtn">📍 Vuoi proporre una location?</summary>
+      <div class="event-people">
+        <div class="stack">
+          <?php foreach (array_slice($going, 0, 5) as $g): ?><span class="avatar xs" style="background:<?= avatar_color($g) ?>" title="<?= e($g) ?>"><?= e(initials($g)) ?></span><?php endforeach; ?>
+          <?php if (count($going) > 5): ?><span class="avatar xs more">+<?= count($going) - 5 ?></span><?php endif; ?>
+        </div>
+        <span class="muted" title="<?= e($ev['going_names'] ?? '') ?>"><?= (int)$ev['n_going'] ?> partecipant<?= (int)$ev['n_going'] === 1 ? 'e' : 'i' ?></span>
+        <span class="grow"></span>
+        <?php if (can_manage($ev['user_id'])): ?><?= delete_button('delete_event', $eid, 'index.php#eventi') ?><?php endif; ?>
+        <?php if (!$isPast): ?>
+        <form method="post" action="action.php" class="inline">
+          <?= csrf_field() ?>
+          <input type="hidden" name="action" value="rsvp">
+          <input type="hidden" name="id" value="<?= $eid ?>">
+          <button class="btn sm <?= $ev['going'] ? 'on' : '' ?>"><?= $ev['going'] ? icon('check') . '<span>Ci sono</span>' : '<span>Partecipo</span>' ?></button>
+        </form>
+        <?php endif; ?>
+      </div>
+
+      <div class="places">
+        <div class="places-head">
+          <p class="places-title">Luoghi proposti<?php if ($places): ?> <span class="count"><?= count($places) ?></span><?php endif; ?></p>
+          <?= open_button('voting-help', 'Come funziona', 'linkbtn help-link', 'info') ?>
+        </div>
+        <?php if (!$places && !$isPast): ?><p class="muted small">Nessuna proposta per ora. Sii il primo.</p><?php endif; ?>
+        <?php if ($places): $sheets = ''; ?>
+        <ul class="place-list">
+          <?php foreach ($places as $pl): $chosen = $ev['location_url'] === $pl['maps_url'] && $ev['location'] === $pl['name']; $nr = (int)$pl['n_ratings']; ?>
+          <li class="place<?= $chosen ? ' chosen' : '' ?>">
+            <div class="place-score" title="Punteggio ponderato: premia i luoghi votati da più persone">
+              <b><?= $nr ? fmt_num($pl['score']) : '–' ?></b><span>punti</span>
+            </div>
+            <div class="place-body">
+              <div class="place-line">
+                <a class="place-name" href="<?= e($pl['maps_url']) ?>" target="_blank" rel="noopener noreferrer"><?= e($pl['name']) ?><?= icon('arrow', 'tiny') ?></a>
+                <?php if ($chosen): ?><span class="badge teal">Scelto</span><?php endif; ?>
+              </div>
+              <?php if ($pl['note']): ?><p class="place-note"><?= e($pl['note']) ?></p><?php endif; ?>
+              <div class="rating">
+                <form method="post" action="action.php" class="stars" aria-label="Il tuo voto">
+                  <?= csrf_field() ?>
+                  <input type="hidden" name="action" value="rate_place">
+                  <input type="hidden" name="id" value="<?= (int)$pl['id'] ?>">
+                  <?php for ($s = 5; $s >= 1; $s--): // ordine inverso per l'effetto hover in CSS ?>
+                  <button name="stars" value="<?= $s ?>" class="star<?= $s <= (int)$pl['my_stars'] ? ' on' : '' ?>"
+                    aria-label="<?= $s ?> su 5" title="<?= (int)$pl['my_stars'] === $s ? 'Togli il tuo voto' : $s . ' su 5' ?>"><?= icon('star') ?></button>
+                  <?php endfor; ?>
+                </form>
+                <span class="meta"><?php if ($nr): ?>Media <?= fmt_num($pl['avg']) ?> · <?= $nr ?> vot<?= $nr === 1 ? 'o' : 'i' ?><?php else: ?>Nessun voto<?php endif; ?><?php if ($pl['my_stars']): ?> · il tuo: <?= (int)$pl['my_stars'] ?>/5<?php endif; ?></span>
+              </div>
+              <div class="place-actions meta">
+                <span>Proposto da <?= e($pl['author']) ?></span>
+                <?php if (!$isPast && !$chosen && can_manage($ev['user_id'])): ?>
+                <form method="post" action="action.php" class="inline">
+                  <?= csrf_field() ?>
+                  <input type="hidden" name="action" value="choose_place">
+                  <input type="hidden" name="id" value="<?= (int)$pl['id'] ?>">
+                  <button class="linkbtn strong">Scegli questo</button>
+                </form>
+                <?php endif; ?>
+                <?php if (!$isPast && can_manage($pl['user_id'])): ?><?= open_button('edit-place-' . (int)$pl['id'], 'Modifica', 'linkbtn', '') ?><?php endif; ?>
+                <?php if (can_manage($pl['user_id'])): ?><?= delete_button('delete_place', (int)$pl['id'], $back) ?><?php endif; ?>
+              </div>
+            </div>
+          </li>
+          <?php if (!$isPast && can_manage($pl['user_id'])): ob_start(); ?>
+          <?php sheet_start('edit-place-' . (int)$pl['id'], 'Modifica proposta', $ev['title']); ?>
             <form method="post" action="action.php" class="form place-form">
               <?= csrf_field() ?>
-              <input type="hidden" name="action" value="propose_place">
-              <input type="hidden" name="event_id" value="<?= $eid ?>">
-              <?php place_fields(); ?>
-              <button class="btn sm">Allega la proposta</button>
+              <input type="hidden" name="action" value="edit_place">
+              <input type="hidden" name="id" value="<?= (int)$pl['id'] ?>">
+              <?php place_fields($pl); ?>
+              <p class="muted small">Se cambi il nome del posto, i voti ricevuti si azzerano: di fatto è una nuova proposta.</p>
+              <button class="btn">Salva modifiche</button>
             </form>
-          </details>
+          <?php sheet_end(); $sheets .= ob_get_clean(); ?>
           <?php endif; ?>
-        </div>
+          <?php endforeach; ?>
+        </ul>
+        <?= $sheets ?>
+        <?php endif; ?>
+
+        <?php if (!$isPast): ?>
+        <?= open_button('propose-' . $eid, 'Vuoi proporre una location?', 'propose-btn', 'pin') ?>
+        <?php sheet_start('propose-' . $eid, 'Proponi una location', $ev['title']); ?>
+          <form method="post" action="action.php" class="form place-form">
+            <?= csrf_field() ?>
+            <input type="hidden" name="action" value="propose_place">
+            <input type="hidden" name="event_id" value="<?= $eid ?>">
+            <?php place_fields(); ?>
+            <button class="btn">Allega la proposta</button>
+          </form>
+        <?php sheet_end(); ?>
+        <?php endif; ?>
       </div>
     </article>
     <?php
 }
 
+$qs = fn(array $over) => '?' . http_build_query(array_filter(array_merge(['sort' => $sort, 'cat' => $cat], $over))) . '#discussione';
+
 page_start('Home');
+intro(
+    'Bentornato/a, ' . explode(' ', $me['name'])[0] . '.',
+    '<a class="btn light" href="#eventi">Prossimi eventi</a> <a class="btn outline-light" href="#discussione">Vai alla discussione ' . icon('right') . '</a>'
+);
 ?>
-<?php intro(
-    'Bentornato/a, ' . explode(' ', $me['name'])[0],
-    '<a class="btn" href="#discussione">Apri un topic</a> <a class="btn ghost light" href="#eventi">Prossimi eventi</a>'
-); ?>
 
 <!-- EVENTI -->
 <section class="section" id="eventi">
   <div class="wrap">
-    <div class="section-head">
-      <h2><span class="tag coral">01</span> Eventi</h2>
-      <details class="composer">
-        <summary class="btn">+ Proponi un evento</summary>
-        <form method="post" action="action.php" class="card form">
-          <?= csrf_field() ?>
-          <input type="hidden" name="action" value="create_event">
-          <label>Titolo <input name="title" required maxlength="140"></label>
-          <div class="row">
-            <label>Data <input type="date" name="event_date" required min="<?= $today ?>"></label>
-            <label>Ora <input type="time" name="event_time"></label>
-          </div>
-          <label>Luogo <input name="location" maxlength="140"></label>
-          <label>Descrizione <textarea name="description" rows="3" maxlength="3000"></textarea></label>
-          <button class="btn">Pubblica evento</button>
-        </form>
-      </details>
-    </div>
-    <?php if (!$upcoming): ?><p class="empty">Nessun evento in programma. Proponine uno!</p><?php endif; ?>
+    <?php section_head('Eventi', 'Ci vediamo lì.', 'Cene, incontri e occasioni per stare insieme. Segna la tua presenza e proponi dove andare.',
+        open_button('sheet-event', 'Nuovo evento')); ?>
+    <?php if (!$upcoming): ?><p class="empty">Nessun evento in programma. Proponine uno.</p><?php endif; ?>
     <div class="events">
       <?php foreach ($upcoming as $ev) event_card($ev, $uid, $places[(int)$ev['id']] ?? []); ?>
     </div>
     <?php if ($past): ?>
     <details class="past-events">
-      <summary>Eventi passati (<?= count($past) ?>)</summary>
+      <summary>Eventi passati <span class="count"><?= count($past) ?></span><?= icon('down') ?></summary>
       <div class="events"><?php foreach ($past as $ev) event_card($ev, $uid, $places[(int)$ev['id']] ?? [], true); ?></div>
     </details>
     <?php endif; ?>
@@ -241,84 +240,58 @@ page_start('Home');
 </section>
 
 <!-- DISCUSSIONE -->
-<section class="section alt" id="discussione">
+<section class="section" id="discussione">
   <div class="wrap">
-    <div class="section-head">
-      <h2><span class="tag teal">02</span> Discussione</h2>
-      <details class="composer">
-        <summary class="btn">+ Nuovo topic</summary>
-        <form method="post" action="action.php" class="card form">
-          <?= csrf_field() ?>
-          <input type="hidden" name="action" value="create_topic">
-          <label>Titolo <input name="title" required maxlength="200"></label>
-          <label>Categoria
-            <select name="category">
-              <?php foreach (TOPIC_CATEGORIES as $c): ?><option><?= e($c) ?></option><?php endforeach; ?>
-            </select>
-          </label>
-          <label>Testo <textarea name="body" rows="5" maxlength="10000" placeholder="Idee, domande, link a bandi o concorsi..."></textarea></label>
-          <button class="btn">Pubblica</button>
-        </form>
-      </details>
+    <?php section_head('Discussione', 'Parliamone.', 'Lavoro, concorsi, nuove posizioni, idee. Apri un topic e lascia che gli altri rispondano.',
+        open_button('sheet-topic', 'Nuovo topic')); ?>
+    <div class="toolbar">
+      <div class="seg" role="tablist" aria-label="Ordina">
+        <a class="<?= $sort === 'new' ? 'on' : '' ?>" href="<?= e($qs(['sort' => 'new'])) ?>">Recenti</a>
+        <a class="<?= $sort === 'top' ? 'on' : '' ?>" href="<?= e($qs(['sort' => 'top'])) ?>">Più votati</a>
+      </div>
+      <div class="pills">
+        <a class="pill<?= !$cat ? ' on' : '' ?>" href="<?= e($qs(['cat' => ''])) ?>">Tutti</a>
+        <?php foreach (TOPIC_CATEGORIES as $c): ?>
+        <a class="pill<?= $cat === $c ? ' on' : '' ?>" href="<?= e($qs(['cat' => $c])) ?>"><?= e($c) ?></a>
+        <?php endforeach; ?>
+      </div>
     </div>
-    <div class="filters">
-      <a class="chip<?= $sort === 'new' ? ' on' : '' ?>" href="?sort=new<?= $cat ? '&cat=' . urlencode($cat) : '' ?>#discussione">Recenti</a>
-      <a class="chip<?= $sort === 'top' ? ' on' : '' ?>" href="?sort=top<?= $cat ? '&cat=' . urlencode($cat) : '' ?>#discussione">Più votati</a>
-      <span class="sep"></span>
-      <a class="chip<?= !$cat ? ' on' : '' ?>" href="?sort=<?= $sort ?>#discussione">Tutti</a>
-      <?php foreach (TOPIC_CATEGORIES as $c): ?>
-        <a class="chip<?= $cat === $c ? ' on' : '' ?>" href="?sort=<?= $sort ?>&cat=<?= urlencode($c) ?>#discussione"><?= e($c) ?></a>
-      <?php endforeach; ?>
-    </div>
-    <?php if (!$topics): ?><p class="empty">Ancora nessun topic<?= $cat ? ' in questa categoria' : '' ?>. Rompi il ghiaccio.</p><?php endif; ?>
-    <div class="topics">
-      <?php foreach ($topics as $t): ?>
-      <article class="card topic">
-        <?= vote_box('topic', (int)$t['id'], (int)$t['score'], (int)$t['mine'], 'index.php?sort=' . $sort . ($cat ? '&cat=' . urlencode($cat) : '') . '#discussione') ?>
-        <div class="topic-body">
-          <p class="label"><?= e($t['category']) ?></p>
-          <h3><a href="topic.php?id=<?= (int)$t['id'] ?>"><?= e($t['title']) ?></a></h3>
-          <?php if ($t['body']): ?><p class="excerpt"><?= e(mb_strimwidth($t['body'], 0, 220, '…')) ?></p><?php endif; ?>
-          <p class="meta"><?= e($t['author']) ?> · <?= ago((int)$t['created_at']) ?> · <a href="topic.php?id=<?= (int)$t['id'] ?>#commenti"><?= (int)$t['n_comments'] ?> comment<?= (int)$t['n_comments'] === 1 ? 'o' : 'i' ?></a></p>
-        </div>
+    <?php if (!$topics): ?><p class="empty">Ancora nessun topic<?= $cat ? ' in questa categoria' : '' ?>. Rompi il ghiaccio.</p><?php else: ?>
+    <div class="panel topics">
+      <?php foreach ($topics as $t): $tid = (int)$t['id']; ?>
+      <article class="row topic">
+        <?= vote_box('topic', $tid, (int)$t['score'], (int)$t['mine'], 'index.php' . $qs([])) ?>
+        <a class="topic-link" href="topic.php?id=<?= $tid ?>">
+          <span class="cat <?= CATEGORY_CLASS[$t['category']] ?? 'c-gray' ?>"><?= e($t['category']) ?></span>
+          <h3><?= e($t['title']) ?></h3>
+          <?php if ($t['body']): ?><p class="excerpt"><?= e(mb_strimwidth($t['body'], 0, 200, '…')) ?></p><?php endif; ?>
+          <span class="meta"><?= e($t['author']) ?> · <?= ago((int)$t['created_at']) ?></span>
+        </a>
+        <a class="comments-count" href="topic.php?id=<?= $tid ?>#commenti" aria-label="<?= (int)$t['n_comments'] ?> commenti"><?= icon('chat') ?><?= (int)$t['n_comments'] ?></a>
       </article>
       <?php endforeach; ?>
     </div>
+    <?php endif; ?>
   </div>
 </section>
 
 <!-- MATERIALI -->
 <section class="section" id="materiali">
   <div class="wrap">
-    <div class="section-head">
-      <h2><span class="tag sun">03</span> Materiali</h2>
-      <details class="composer">
-        <summary class="btn">+ Carica un documento</summary>
-        <form method="post" action="action.php" enctype="multipart/form-data" class="card form">
-          <?= csrf_field() ?>
-          <input type="hidden" name="action" value="upload">
-          <label>File (max <?= MAX_UPLOAD_BYTES / 1048576 ?> MB)
-            <input type="file" name="file" required accept="<?= e(implode(',', array_map(fn($x) => '.' . $x, ALLOWED_EXT))) ?>">
-          </label>
-          <label>Titolo <input name="title" maxlength="200" placeholder="Se vuoto, uso il nome del file"></label>
-          <label>Perché è interessante? <textarea name="description" rows="2" maxlength="1000"></textarea></label>
-          <button class="btn">Carica</button>
-        </form>
-      </details>
-    </div>
-    <?php if (!$docs): ?><p class="empty">Nessun materiale caricato. Slide, paper, script R o Python, bandi: tutto utile.</p><?php endif; ?>
-    <div class="docs">
+    <?php section_head('Materiali', 'Tutto quello che vale la pena leggere.', 'Paper, slide, script R e Python, bandi. Carica quello che hai trovato utile.',
+        open_button('sheet-upload', 'Carica un documento', 'btn', 'upload')); ?>
+    <?php if (!$docs): ?><p class="empty">Nessun materiale caricato. Il primo file è il più importante.</p><?php endif; ?>
+    <div class="grid docs">
       <?php foreach ($docs as $d): $ext = strtolower(pathinfo($d['original_name'], PATHINFO_EXTENSION)); ?>
-      <article class="card doc">
-        <span class="ext"><?= e($ext) ?></span>
-        <div class="doc-body">
-          <h3><a href="download.php?id=<?= (int)$d['id'] ?>"><?= e($d['title']) ?></a></h3>
-          <?php if ($d['description']): ?><p><?= rich($d['description']) ?></p><?php endif; ?>
-          <div class="meta"><?= e($d['original_name']) ?> · <?= fmt_size((int)$d['size']) ?> · <?= e($d['author']) ?> · <?= ago((int)$d['created_at']) ?>
-            <?php if (can_manage($d['user_id'])): ?> · <?= delete_button('delete_doc', (int)$d['id'], 'index.php#materiali') ?><?php endif; ?>
-          </div>
+      <article class="tile doc hoverable">
+        <span class="fileicon" style="background:<?= file_tint($ext) ?>"><?= e(mb_strtoupper($ext)) ?></span>
+        <h3><a href="download.php?id=<?= (int)$d['id'] ?>"><?= e($d['title']) ?></a></h3>
+        <?php if ($d['description']): ?><p class="doc-desc"><?= rich($d['description']) ?></p><?php endif; ?>
+        <p class="meta"><?= fmt_size((int)$d['size']) ?> · <?= e($d['author']) ?> · <?= ago((int)$d['created_at']) ?></p>
+        <div class="doc-foot">
+          <a class="btn sm secondary" href="download.php?id=<?= (int)$d['id'] ?>"><?= icon('download') ?><span>Scarica</span></a>
+          <?php if (can_manage($d['user_id'])): ?><?= delete_button('delete_doc', (int)$d['id'], 'index.php#materiali') ?><?php endif; ?>
         </div>
-        <a class="btn sm ghost" href="download.php?id=<?= (int)$d['id'] ?>">Scarica</a>
       </article>
       <?php endforeach; ?>
     </div>
@@ -326,72 +299,114 @@ page_start('Home');
 </section>
 
 <!-- MEMBRI -->
-<section class="section alt" id="membri">
+<section class="section" id="membri">
   <div class="wrap">
-    <div class="section-head">
-      <h2><span class="tag lilac">04</span> Membri <small><?= count($members) ?></small></h2>
-    </div>
-    <div class="members">
+    <?php section_head('Membri', count($members) . ' colleghi, un solo codice.', 'Chi è entrato con noi in Ragioneria. Aggiungi due righe su di te.'); ?>
+    <div class="grid members">
       <?php foreach ($members as $m): $isMe = (int)$m['id'] === $uid; ?>
-      <article class="card member<?= $isMe ? ' me' : '' ?>">
-        <span class="avatar" style="background:<?= avatar_color($m['name']) ?>"><?= e(initials($m['name'])) ?></span>
-        <h3><?= e($m['name']) ?><?= $isMe ? ' <small>(tu)</small>' : '' ?><?= $m['is_admin'] ? ' <span class="badge">admin</span>' : '' ?></h3>
-        <?php if ($m['bio']): ?><p><?= e($m['bio']) ?></p><?php elseif (!$isMe): ?><p class="muted">Nessuna presentazione.</p><?php endif; ?>
-        <p class="meta">Dal <?= fmt_day((int)$m['created_at']) ?> · <?= (int)$m['n_topics'] ?> topic · <?= (int)$m['n_comments'] ?> commenti · <?= (int)$m['n_docs'] ?> file</p>
-        <?php if ($isMe): ?>
-        <details>
-          <summary class="linkbtn"><?= $m['bio'] ? 'Modifica presentazione' : 'Aggiungi una presentazione' ?></summary>
-          <form method="post" action="action.php" class="form">
-            <?= csrf_field() ?>
-            <input type="hidden" name="action" value="update_bio">
-            <textarea name="bio" rows="3" maxlength="400" placeholder="Ufficio, temi di cui ti occupi, interessi..."><?= e($m['bio']) ?></textarea>
-            <button class="btn sm">Salva</button>
-          </form>
-        </details>
-        <?php endif; ?>
+      <article class="tile member<?= $isMe ? ' me' : '' ?>">
+        <span class="avatar xl" style="background:<?= avatar_color($m['name']) ?>"><?= e(initials($m['name'])) ?></span>
+        <h3><?= e($m['name']) ?></h3>
+        <p class="member-tags"><?php if ($isMe): ?><span class="badge light">Tu</span><?php endif; ?><?php if ($m['is_admin']): ?><span class="badge">Admin</span><?php endif; ?></p>
+        <p class="member-bio"><?= $m['bio'] ? e($m['bio']) : '<span class="muted">' . ($isMe ? 'Non hai ancora una presentazione.' : 'Nessuna presentazione.') . '</span>' ?></p>
+        <dl class="stats">
+          <div><dt>Topic</dt><dd><?= (int)$m['n_topics'] ?></dd></div>
+          <div><dt>Commenti</dt><dd><?= (int)$m['n_comments'] ?></dd></div>
+          <div><dt>File</dt><dd><?= (int)$m['n_docs'] ?></dd></div>
+        </dl>
+        <p class="meta">Dal <?= fmt_day((int)$m['created_at']) ?></p>
+        <?php if ($isMe): ?><?= open_button('sheet-bio', $m['bio'] ? 'Modifica presentazione' : 'Aggiungi presentazione', 'btn sm secondary', 'edit') ?><?php endif; ?>
       </article>
       <?php endforeach; ?>
     </div>
   </div>
 </section>
-<dialog class="help" id="voting-help" aria-labelledby="voting-help-title">
-  <form method="dialog" class="help-close-form"><button class="help-close" aria-label="Chiudi">×</button></form>
-  <p class="kicker">Guida rapida</p>
-  <h2 id="voting-help-title">Come si sceglie il posto</h2>
-  <ol class="help-steps">
+
+<?php sheet_start('sheet-event', 'Nuovo evento', 'Eventi'); ?>
+  <form method="post" action="action.php" class="form">
+    <?= csrf_field() ?>
+    <input type="hidden" name="action" value="create_event">
+    <label>Titolo <input name="title" required maxlength="140" placeholder="Es. Aperitivo di fine mese"></label>
+    <div class="row">
+      <label>Data <input type="date" name="event_date" required min="<?= $today ?>"></label>
+      <label>Ora <input type="time" name="event_time"></label>
+    </div>
+    <label>Luogo <small>Facoltativo. Potete anche proporlo dopo, tutti insieme.</small><input name="location" maxlength="140"></label>
+    <label>Descrizione <textarea name="description" rows="3" maxlength="3000"></textarea></label>
+    <button class="btn">Pubblica evento</button>
+  </form>
+<?php sheet_end(); ?>
+
+<?php sheet_start('sheet-topic', 'Nuovo topic', 'Discussione'); ?>
+  <form method="post" action="action.php" class="form">
+    <?= csrf_field() ?>
+    <input type="hidden" name="action" value="create_topic">
+    <label>Titolo <input name="title" required maxlength="200"></label>
+    <label>Categoria
+      <select name="category"><?php foreach (TOPIC_CATEGORIES as $c): ?><option><?= e($c) ?></option><?php endforeach; ?></select>
+    </label>
+    <label>Testo <textarea name="body" rows="6" maxlength="10000" placeholder="Idee, domande, link a bandi o concorsi..."></textarea></label>
+    <button class="btn">Pubblica</button>
+  </form>
+<?php sheet_end(); ?>
+
+<?php sheet_start('sheet-upload', 'Carica un documento', 'Materiali'); ?>
+  <form method="post" action="action.php" enctype="multipart/form-data" class="form">
+    <?= csrf_field() ?>
+    <input type="hidden" name="action" value="upload">
+    <label>File <small>Massimo <?= MAX_UPLOAD_BYTES / 1048576 ?> MB.</small>
+      <input type="file" name="file" required accept="<?= e(implode(',', array_map(fn($x) => '.' . $x, ALLOWED_EXT))) ?>">
+    </label>
+    <label>Titolo <input name="title" maxlength="200" placeholder="Se vuoto, uso il nome del file"></label>
+    <label>Perché è interessante? <textarea name="description" rows="3" maxlength="1000"></textarea></label>
+    <button class="btn">Carica</button>
+  </form>
+<?php sheet_end(); ?>
+
+<?php sheet_start('sheet-bio', 'La tua presentazione', 'Membri'); ?>
+  <form method="post" action="action.php" class="form">
+    <?= csrf_field() ?>
+    <input type="hidden" name="action" value="update_bio">
+    <label>Due righe su di te <textarea name="bio" rows="4" maxlength="400" placeholder="Ufficio, temi di cui ti occupi, interessi..."><?= e($me['bio']) ?></textarea></label>
+    <button class="btn">Salva</button>
+  </form>
+<?php sheet_end(); ?>
+
+<?php sheet_start('voting-help', 'Come si sceglie il posto', 'Guida rapida'); ?>
+  <ol class="steps">
     <li>
-      <h3>📍 Proponi</h3>
-      <p>Su ogni evento in programma apri <b>"Vuoi proporre una location?"</b>, scrivi il nome del posto e controlla l'anteprima della mappa. Per essere precisi incolla il link "Condividi" di Google Maps. Puoi aggiungere una nota: prezzi, capienza, comodità.</p>
+      <h3>Proponi</h3>
+      <p>Su ogni evento in programma premi <b>Vuoi proporre una location?</b>, scrivi il nome del posto e controlla l'anteprima della mappa. Per essere precisi incolla il link "Condividi" di Google Maps. Puoi aggiungere una nota: prezzi, capienza, comodità.</p>
     </li>
     <li>
-      <h3>★ Vota</h3>
-      <p>Dai da 1 a 5 stelle a tutti i posti che vuoi, anche a quelli che hai proposto tu. Puoi cambiare voto quando vuoi; se riclicchi lo stesso numero di stelle, il voto viene tolto.</p>
+      <h3>Vota</h3>
+      <p>Dai da 1 a 5 stelle a tutti i posti che vuoi, anche a quelli proposti da te. Puoi cambiare voto quando vuoi; se riclicchi lo stesso numero di stelle, il voto viene tolto.</p>
     </li>
     <li>
-      <h3>⚖️ Classifica</h3>
-      <p>I posti non sono ordinati per media semplice, ma per un <b>punteggio ponderato</b> che premia quelli votati da più persone. È come se ogni posto partisse già con <?= RATING_PRIOR_WEIGHT ?> voti "neutri" da <?= (int)RATING_PRIOR_MEAN ?> stelle:</p>
+      <h3>Classifica</h3>
+      <p>I posti non sono ordinati per media semplice, ma per un <b>punteggio ponderato</b> che premia quelli votati da più persone. È come se ogni posto partisse già con <?= RATING_PRIOR_WEIGHT ?> voti neutri da <?= (int)RATING_PRIOR_MEAN ?> stelle.</p>
       <p class="formula">punteggio = (<?= (int)RATING_PRIOR_MEAN ?> × <?= RATING_PRIOR_WEIGHT ?> + somma delle stelle) ÷ (<?= RATING_PRIOR_WEIGHT ?> + numero di voti)</p>
-      <table class="help-table">
+      <table class="mini-table">
         <thead><tr><th>Voti ricevuti</th><th>Media</th><th>Punteggio</th></tr></thead>
         <tbody>
-          <tr><td>4 persone danno 4★</td><td>4,0</td><td><b><?= fmt_num(weighted_score(4, 16)) ?></b></td></tr>
-          <tr><td>1 persona dà 5★</td><td>5,0</td><td><?= fmt_num(weighted_score(1, 5)) ?></td></tr>
-          <tr><td>8 persone danno 4★</td><td>4,0</td><td><b><?= fmt_num(weighted_score(8, 32)) ?></b></td></tr>
-          <tr><td>2 persone danno 2★</td><td>2,0</td><td><?= fmt_num(weighted_score(2, 4)) ?></td></tr>
+          <tr><td>4 persone, 4 stelle</td><td>4,0</td><td><b><?= fmt_num(weighted_score(4, 16)) ?></b></td></tr>
+          <tr><td>1 persona, 5 stelle</td><td>5,0</td><td><?= fmt_num(weighted_score(1, 5)) ?></td></tr>
+          <tr><td>8 persone, 4 stelle</td><td>4,0</td><td><b><?= fmt_num(weighted_score(8, 32)) ?></b></td></tr>
+          <tr><td>2 persone, 2 stelle</td><td>2,0</td><td><?= fmt_num(weighted_score(2, 4)) ?></td></tr>
         </tbody>
       </table>
-      <p class="muted small">Un solo entusiasta non basta: per salire in cima serve il gradimento di molti. I posti ancora senza voti stanno in fondo alla lista.</p>
+      <p class="muted small">Un solo entusiasta non basta: per salire in cima serve il gradimento di molti. I posti ancora senza voti stanno in fondo.</p>
     </li>
     <li>
-      <h3>✅ Scelta</h3>
-      <p>Chi ha creato l'evento (o un amministratore) preme <b>"Scegli questo"</b>: il posto diventa la location ufficiale, con il link a Maps in cima alla card e l'etichetta <span class="badge">scelto</span>. La classifica è un'indicazione forte, ma la decisione finale spetta a chi organizza: può contare anche la disponibilità del locale.</p>
+      <h3>Scelta</h3>
+      <p>Chi ha creato l'evento, o un amministratore, preme <b>Scegli questo</b>: il posto diventa la location ufficiale, con il link a Maps in cima all'evento. La classifica è un'indicazione forte, ma la decisione finale spetta a chi organizza: conta anche la disponibilità del locale.</p>
     </li>
     <li>
-      <h3>✏️ Modifiche</h3>
-      <p>Chi ha proposto un posto può modificarlo. Se cambi solo nota o link, i voti restano; se cambi il nome del posto i voti degli altri si azzerano, perché di fatto è una proposta nuova.</p>
+      <h3>Modifiche</h3>
+      <p>Chi ha proposto un posto può modificarlo. Se cambi solo nota o link, i voti restano; se cambi il nome del posto, i voti degli altri si azzerano, perché di fatto è una proposta nuova.</p>
     </li>
   </ol>
-  <form method="dialog"><button class="btn">Ho capito</button></form>
-</dialog>
+  <form method="dialog"><button class="btn wide">Ho capito</button></form>
+<?php sheet_end(); ?>
 
 <?php page_end();

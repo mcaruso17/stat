@@ -9,6 +9,7 @@ const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 const ALLOWED_EXT = ['pdf', 'doc', 'docx', 'odt', 'xls', 'xlsx', 'ods', 'csv', 'ppt', 'pptx', 'odp',
     'txt', 'md', 'png', 'jpg', 'jpeg', 'zip', 'r', 'rmd', 'py', 'ipynb', 'sas', 'do', 'sql'];
 const TOPIC_CATEGORIES = ['Lavoro', 'Concorsi', 'Nuove posizioni', 'Idee', 'Formazione', 'Varie'];
+const CATEGORY_CLASS = ['Lavoro' => 'c-sky', 'Concorsi' => 'c-coral', 'Nuove posizioni' => 'c-teal', 'Idee' => 'c-sun', 'Formazione' => 'c-lilac', 'Varie' => 'c-gray'];
 
 // Domande del cancello d'ingresso: servono almeno 2 risposte giuste su 3.
 const QUIZ = [
@@ -328,8 +329,29 @@ function initials(string $name): string
 
 function avatar_color(string $name): string
 {
-    $palette = ['var(--coral)', 'var(--teal)', 'var(--sun)', 'var(--lilac)', 'var(--sky)'];
+    $palette = [
+        'linear-gradient(135deg, #ff9a5a, #ff4d4d)',
+        'linear-gradient(135deg, #34d1b2, #1b8f7f)',
+        'linear-gradient(135deg, #ffd25a, #ff9f1a)',
+        'linear-gradient(135deg, #c3a6ff, #7b5cff)',
+        'linear-gradient(135deg, #7fd0ff, #3b82f6)',
+        'linear-gradient(135deg, #ff8ac4, #e0457b)',
+    ];
     return $palette[crc32(mb_strtolower($name)) % count($palette)];
+}
+
+/** Colore dell'icona file in base al tipo. */
+function file_tint(string $ext): string
+{
+    return match (true) {
+        $ext === 'pdf' => 'linear-gradient(135deg, #ff7a6b, #e5372b)',
+        in_array($ext, ['xls', 'xlsx', 'ods', 'csv'], true) => 'linear-gradient(135deg, #4fd08a, #17924e)',
+        in_array($ext, ['doc', 'docx', 'odt', 'txt', 'md'], true) => 'linear-gradient(135deg, #6db3ff, #2563eb)',
+        in_array($ext, ['ppt', 'pptx', 'odp'], true) => 'linear-gradient(135deg, #ffb35c, #f06a1d)',
+        in_array($ext, ['png', 'jpg', 'jpeg'], true) => 'linear-gradient(135deg, #5ee0d0, #1a9e95)',
+        in_array($ext, ['r', 'rmd', 'py', 'ipynb', 'sas', 'do', 'sql'], true) => 'linear-gradient(135deg, #b99bff, #6d4aff)',
+        default => 'linear-gradient(135deg, #a1a1a6, #636366)',
+    };
 }
 
 function post_str(string $key, int $max = 10000): string

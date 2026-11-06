@@ -1,3 +1,19 @@
+// Pannelli modali: qualsiasi [data-open="id"] apre il <dialog> con quell'id.
+document.addEventListener('click', e => {
+  const btn = e.target.closest('[data-open]');
+  if (btn) {
+    const dlg = document.getElementById(btn.dataset.open);
+    if (dlg && typeof dlg.showModal === 'function') {
+      dlg.showModal();
+      const first = dlg.querySelector('input:not([type=hidden]), textarea');
+      if (first && matchMedia('(pointer: fine)').matches) first.focus();
+    }
+    return;
+  }
+  // Clic sullo sfondo scuro: chiude.
+  if (e.target.matches('dialog.sheet[open]')) e.target.close();
+});
+
 // Anteprima Google Maps mentre si scrive il nome del posto (nessuna chiave API).
 document.querySelectorAll('.place-form').forEach(form => {
   const input = form.querySelector('[data-maps-query]');
@@ -15,15 +31,4 @@ document.querySelectorAll('.place-form').forEach(form => {
       box.hidden = false;
     }, 600);
   });
-});
-
-// Pannello "Come funziona".
-document.querySelectorAll('[data-help]').forEach(btn => {
-  const dlg = document.getElementById(btn.dataset.help);
-  if (!dlg || typeof dlg.showModal !== 'function') return;
-  btn.addEventListener('click', () => dlg.showModal());
-});
-document.querySelectorAll('dialog.help').forEach(dlg => {
-  // Clic sullo sfondo scuro: chiude.
-  dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
 });

@@ -49,33 +49,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 page_start($mode === 'register' ? 'Registrati' : 'Accedi', false);
 ?>
-<section class="hero hero-small">
+<section class="auth">
   <div class="wrap">
-    <p class="kicker"><?= $mode === 'register' ? 'Quiz superato' : 'Bentornato/a' ?></p>
-    <h1><?= $mode === 'register' ? 'Crea il tuo account' : 'Accedi' ?></h1>
-  </div>
-</section>
-<section class="section">
-  <div class="wrap narrow">
-    <?php if ($error): ?><div class="alert"><?= e($error) ?></div><?php endif; ?>
-    <form method="post" class="card form">
-      <?= csrf_field() ?>
-      <input type="hidden" name="mode" value="<?= $mode ?>">
-      <label>Nome e cognome
-        <input name="name" value="<?= e($name) ?>" required minlength="2" maxlength="60" autocomplete="username" autofocus>
-      </label>
-      <label>Password
-        <input type="password" name="password" required minlength="4" autocomplete="<?= $mode === 'register' ? 'new-password' : 'current-password' ?>">
-      </label>
-      <button class="btn big"><?= $mode === 'register' ? 'Registrati' : 'Entra' ?></button>
-      <p class="muted">
+    <div class="tile auth-tile">
+      <p class="eyebrow"><?= $mode === 'register' ? 'Quiz superato' : 'Bentornato/a' ?></p>
+      <h1><?= $mode === 'register' ? 'Crea il tuo account.' : 'Accedi.' ?></h1>
+      <p class="muted"><?= $mode === 'register' ? 'Nome e una password a tua scelta. Niente di complicato.' : 'Con il nome e la password che hai scelto.' ?></p>
+      <?php if ($error): ?><div class="alert" style="margin:18px 0 0"><?= icon('info') ?><span><?= e($error) ?></span></div><?php endif; ?>
+      <form method="post" class="form">
+        <?= csrf_field() ?>
+        <input type="hidden" name="mode" value="<?= $mode ?>">
+        <label>Nome e cognome
+          <input name="name" value="<?= e($name) ?>" required minlength="2" maxlength="60" autocomplete="username" autofocus>
+        </label>
+        <label>Password
+          <input type="password" name="password" required minlength="4" autocomplete="<?= $mode === 'register' ? 'new-password' : 'current-password' ?>">
+        </label>
+        <button class="btn big"><?= $mode === 'register' ? 'Registrati' : 'Entra' ?></button>
+      </form>
+      <p class="auth-foot">
         <?php if ($mode === 'register'): ?>
           Hai già un account? <a href="auth.php?mode=login">Accedi</a>
         <?php else: ?>
           Non hai un account? <a href="gate.php">Rispondi alle domande e registrati</a>
         <?php endif; ?>
       </p>
-    </form>
+    </div>
   </div>
 </section>
 <?php page_end();

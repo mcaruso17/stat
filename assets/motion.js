@@ -20,18 +20,18 @@
   }
 
   // 2. Comparsa dei blocchi quando entrano nello schermo.
-  const sel = '.section-head, .card, .filters, .empty, .past-events, .hero-gate .wrap, .hero-small .wrap';
-  const els = [...document.querySelectorAll(sel)].filter(el => !el.parentElement.closest(sel));
+  const sel = '.section-head, .tile, .panel, .toolbar, .empty, .past-events, .quiz-q, .back, .comments-title';
+  const els = [...document.querySelectorAll(sel)].filter(el => !el.parentElement.closest(sel) && !el.closest('dialog'));
   if (reduce || !('IntersectionObserver' in window)) return;
   els.forEach(el => el.setAttribute('data-reveal', ''));
   const io = new IntersectionObserver(entries => {
     let i = 0;
     for (const en of entries) {
       if (!en.isIntersecting) continue;
-      en.target.style.setProperty('--d', Math.min(i++, 6) * 90 + 'ms');
+      en.target.style.setProperty('--d', Math.min(i++, 6) * 80 + 'ms');
       en.target.classList.add('in');
       io.unobserve(en.target);
     }
-  }, { rootMargin: '0px 0px -6% 0px', threshold: 0.06 });
+  }, { rootMargin: '0px 0px -6% 0px', threshold: 0.04 });
   els.forEach(el => io.observe(el));
 })();
