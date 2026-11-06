@@ -19,8 +19,7 @@ L'admin può:
 - eliminare qualsiasi evento, topic, commento o documento;
 - da `admin.php`: reimpostare la password di un utente, nominare o rimuovere altri admin, eliminare un account con tutti i suoi contenuti.
 
-Per cambiare la password admin: generare un nuovo hash con
-`php -r 'echo password_hash("NUOVA", PASSWORD_DEFAULT);'` e reimpostarla dalla pagina admin (l'hash nel codice serve solo alla prima creazione).
+Per cambiare la password admin basta usare "Reimposta" sulla propria riga in `admin.php`. L'hash nel codice serve solo alla prima creazione dell'account.
 
 ## Struttura
 
