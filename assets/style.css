@@ -327,3 +327,29 @@ input[type=file] { padding: 8px; }
 .maps-search .btn { flex: none; }
 .maps-preview { border: 2px solid var(--ink); border-radius: 12px; overflow: hidden; height: 220px; background: var(--paper); }
 .maps-preview iframe { width: 100%; height: 100%; border: 0; display: block; }
+
+/* Pannello "Come funziona" */
+.places-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.places-head .places-title { margin: 0; }
+.help-btn { border: 2px solid var(--ink); background: #fff; color: var(--ink); border-radius: 999px; padding: 3px 10px; font: 600 .8rem var(--body); cursor: pointer; }
+.help-btn:hover { background: var(--sun); }
+dialog.help { width: min(640px, calc(100% - 32px)); max-height: calc(100vh - 48px); overflow-y: auto; padding: 28px; border: 2px solid var(--ink); border-radius: 20px;
+  box-shadow: 8px 8px 0 var(--ink); background: var(--paper); color: var(--ink); }
+dialog.help[open] { animation: help-in .45s var(--ease, ease) both; }
+dialog.help::backdrop { background: rgba(22, 22, 58, .55); backdrop-filter: blur(4px); animation: fade-in .3s ease both; }
+@keyframes help-in { from { opacity: 0; transform: translateY(24px) scale(.97); } }
+@keyframes fade-in { from { opacity: 0; } }
+dialog.help h2 { font-size: 1.8rem; margin-top: 10px; }
+.help-close-form { position: sticky; top: 0; float: right; margin: -12px -12px 0 0; }
+.help-close { width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--ink); background: #fff; font-size: 1.3rem; line-height: 1; cursor: pointer; }
+.help-close:hover { background: var(--coral); color: #fff; }
+.help-steps { list-style: none; padding: 0; margin: 18px 0 22px; display: grid; gap: 16px; counter-reset: step; }
+.help-steps li { background: #fff; border: 2px solid var(--ink); border-radius: 14px; padding: 14px 16px; }
+.help-steps h3 { margin-bottom: .3em; }
+.help-steps p:last-child { margin-bottom: 0; }
+.formula { font: 600 .9rem ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--ink); color: var(--sun); padding: 10px 12px; border-radius: 10px; overflow-x: auto; }
+.help-table { width: 100%; border-collapse: collapse; font-size: .9rem; margin-bottom: 8px; }
+.help-table th, .help-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.help-table th { font: 700 .7rem var(--display); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { dialog.help[open], dialog.help::backdrop { animation: none; } }
+@media (max-width: 600px) { dialog.help { padding: 20px 16px; } .help-steps li { padding: 12px; } }

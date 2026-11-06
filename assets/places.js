@@ -16,3 +16,14 @@ document.querySelectorAll('.place-form').forEach(form => {
     }, 600);
   });
 });
+
+// Pannello "Come funziona".
+document.querySelectorAll('[data-help]').forEach(btn => {
+  const dlg = document.getElementById(btn.dataset.help);
+  if (!dlg || typeof dlg.showModal !== 'function') return;
+  btn.addEventListener('click', () => dlg.showModal());
+});
+document.querySelectorAll('dialog.help').forEach(dlg => {
+  // Clic sullo sfondo scuro: chiude.
+  dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
+});

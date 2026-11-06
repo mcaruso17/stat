@@ -119,8 +119,12 @@ function event_card(array $ev, int $uid, array $places, bool $isPast = false): v
         </div>
 
         <div class="places">
+          <div class="places-head">
+            <p class="places-title">Luoghi proposti <span><?= count($places) ?></span></p>
+            <button type="button" class="help-btn" data-help="voting-help" aria-haspopup="dialog">ⓘ Come funziona</button>
+          </div>
+          <?php if (!$places && !$isPast): ?><p class="muted small">Nessuna proposta per ora. Sii il primo!</p><?php endif; ?>
           <?php if ($places): ?>
-          <p class="places-title">Luoghi proposti <span><?= count($places) ?></span></p>
           <ul class="place-list">
             <?php foreach ($places as $pl): $chosen = $ev['location_url'] === $pl['maps_url'] && $ev['location'] === $pl['name']; ?>
             <li class="place<?= $chosen ? ' chosen' : '' ?>">
@@ -350,4 +354,44 @@ page_start('Home');
     </div>
   </div>
 </section>
+<dialog class="help" id="voting-help" aria-labelledby="voting-help-title">
+  <form method="dialog" class="help-close-form"><button class="help-close" aria-label="Chiudi">×</button></form>
+  <p class="kicker">Guida rapida</p>
+  <h2 id="voting-help-title">Come si sceglie il posto</h2>
+  <ol class="help-steps">
+    <li>
+      <h3>📍 Proponi</h3>
+      <p>Su ogni evento in programma apri <b>"Vuoi proporre una location?"</b>, scrivi il nome del posto e controlla l'anteprima della mappa. Per essere precisi incolla il link "Condividi" di Google Maps. Puoi aggiungere una nota: prezzi, capienza, comodità.</p>
+    </li>
+    <li>
+      <h3>★ Vota</h3>
+      <p>Dai da 1 a 5 stelle a tutti i posti che vuoi, anche a quelli che hai proposto tu. Puoi cambiare voto quando vuoi; se riclicchi lo stesso numero di stelle, il voto viene tolto.</p>
+    </li>
+    <li>
+      <h3>⚖️ Classifica</h3>
+      <p>I posti non sono ordinati per media semplice, ma per un <b>punteggio ponderato</b> che premia quelli votati da più persone. È come se ogni posto partisse già con <?= RATING_PRIOR_WEIGHT ?> voti "neutri" da <?= (int)RATING_PRIOR_MEAN ?> stelle:</p>
+      <p class="formula">punteggio = (<?= (int)RATING_PRIOR_MEAN ?> × <?= RATING_PRIOR_WEIGHT ?> + somma delle stelle) ÷ (<?= RATING_PRIOR_WEIGHT ?> + numero di voti)</p>
+      <table class="help-table">
+        <thead><tr><th>Voti ricevuti</th><th>Media</th><th>Punteggio</th></tr></thead>
+        <tbody>
+          <tr><td>4 persone danno 4★</td><td>4,0</td><td><b><?= fmt_num(weighted_score(4, 16)) ?></b></td></tr>
+          <tr><td>1 persona dà 5★</td><td>5,0</td><td><?= fmt_num(weighted_score(1, 5)) ?></td></tr>
+          <tr><td>8 persone danno 4★</td><td>4,0</td><td><b><?= fmt_num(weighted_score(8, 32)) ?></b></td></tr>
+          <tr><td>2 persone danno 2★</td><td>2,0</td><td><?= fmt_num(weighted_score(2, 4)) ?></td></tr>
+        </tbody>
+      </table>
+      <p class="muted small">Un solo entusiasta non basta: per salire in cima serve il gradimento di molti. I posti ancora senza voti stanno in fondo alla lista.</p>
+    </li>
+    <li>
+      <h3>✅ Scelta</h3>
+      <p>Chi ha creato l'evento (o un amministratore) preme <b>"Scegli questo"</b>: il posto diventa la location ufficiale, con il link a Maps in cima alla card e l'etichetta <span class="badge">scelto</span>. La classifica è un'indicazione forte, ma la decisione finale spetta a chi organizza: può contare anche la disponibilità del locale.</p>
+    </li>
+    <li>
+      <h3>✏️ Modifiche</h3>
+      <p>Chi ha proposto un posto può modificarlo. Se cambi solo nota o link, i voti restano; se cambi il nome del posto i voti degli altri si azzerano, perché di fatto è una proposta nuova.</p>
+    </li>
+  </ol>
+  <form method="dialog"><button class="btn">Ho capito</button></form>
+</dialog>
+
 <?php page_end();

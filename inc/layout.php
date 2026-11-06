@@ -16,7 +16,7 @@ function page_start(string $title, bool $nav = true): void
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;700;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=5">
+<link rel="stylesheet" href="assets/style.css?v=6">
 <script>document.documentElement.classList.add('js')</script>
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 </head>
@@ -61,7 +61,7 @@ function page_end(): void
   </div>
 </footer>
 <script src="assets/motion.js?v=1"></script>
-<script src="assets/places.js?v=1"></script>
+<script src="assets/places.js?v=2"></script>
 </body>
 </html>
 <?php
