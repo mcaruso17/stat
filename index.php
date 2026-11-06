@@ -23,14 +23,45 @@ $past = $st->fetchAll();
 
 // Luoghi proposti, raggruppati per evento
 $st = $pdo->prepare('SELECT p.*, u.name AS author,
-    (SELECT COUNT(*) FROM place_votes v WHERE v.place_id = p.id) AS n_votes,
-    (SELECT COUNT(*) FROM place_votes v WHERE v.place_id = p.id AND v.user_id = ?) AS voted
+    (SELECT COUNT(*) FROM place_ratings r WHERE r.place_id = p.id) AS n_ratings,
+    (SELECT COALESCE(SUM(stars), 0) FROM place_ratings r WHERE r.place_id = p.id) AS sum_stars,
+    (SELECT stars FROM place_ratings r WHERE r.place_id = p.id AND r.user_id = ?) AS my_stars
     FROM event_places p JOIN users u ON u.id = p.user_id
-    ORDER BY n_votes DESC, p.created_at ASC');
+    ORDER BY p.created_at ASC');
 $st->execute([$uid]);
 $places = [];
 foreach ($st->fetchAll() as $pl) {
+    $n = (int)$pl['n_ratings'];
+    $pl['avg'] = $n ? $pl['sum_stars'] / $n : 0.0;
+    $pl['score'] = weighted_score($n, (float)$pl['sum_stars']);
     $places[(int)$pl['event_id']][] = $pl;
+}
+// Prima i luoghi votati, per punteggio ponderato; poi quelli senza voti.
+foreach ($places as &$list) {
+    usort($list, fn($a, $b) => [(int)$b['n_ratings'] > 0, $b['score']] <=> [(int)$a['n_ratings'] > 0, $a['score']]);
+}
+unset($list);
+
+/** Campi del form luogo, usati sia per proporre che per modificare. */
+function place_fields(?array $pl = null): void
+{
+    ?>
+    <label>Cerca su Google Maps
+      <span class="maps-search">
+        <input name="name" required maxlength="140" placeholder="Es. Trattoria Da Enzo, Trastevere" autocomplete="off" data-maps-query value="<?= e($pl['name'] ?? '') ?>">
+        <a class="btn sm ghost" href="<?= e($pl ? maps_search_url($pl['name']) : 'https://www.google.com/maps') ?>" target="_blank" rel="noopener noreferrer" data-maps-open>Apri Maps ↗</a>
+      </span>
+    </label>
+    <div class="maps-preview" data-maps-preview hidden>
+      <iframe title="Anteprima Google Maps" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+    </div>
+    <label>Link Google Maps <small class="muted">facoltativo: incolla il link "Condividi" del posto per essere precisi</small>
+      <input name="maps_url" type="url" maxlength="500" placeholder="https://maps.app.goo.gl/..." value="<?= e($pl && $pl['maps_url'] !== maps_search_url($pl['name']) ? $pl['maps_url'] : '') ?>">
+    </label>
+    <label>Perché questo posto? <small class="muted">facoltativo</small>
+      <input name="note" maxlength="300" placeholder="Prezzi, capienza, comodo dalla metro..." value="<?= e($pl['note'] ?? '') ?>">
+    </label>
+    <?php
 }
 
 // Discussione
@@ -93,17 +124,30 @@ function event_card(array $ev, int $uid, array $places, bool $isPast = false): v
           <ul class="place-list">
             <?php foreach ($places as $pl): $chosen = $ev['location_url'] === $pl['maps_url'] && $ev['location'] === $pl['name']; ?>
             <li class="place<?= $chosen ? ' chosen' : '' ?>">
-              <form method="post" action="action.php" class="inline">
-                <?= csrf_field() ?>
-                <input type="hidden" name="action" value="vote_place">
-                <input type="hidden" name="id" value="<?= (int)$pl['id'] ?>">
-                <button class="pvote<?= $pl['voted'] ? ' on' : '' ?>" <?= $isPast ? 'disabled' : '' ?> title="<?= $pl['voted'] ? 'Togli il voto' : 'Vota questo luogo' ?>">▲ <?= (int)$pl['n_votes'] ?></button>
-              </form>
+              <div class="place-score" title="Punteggio ponderato: media bayesiana che premia i luoghi votati da più persone">
+                <b><?= (int)$pl['n_ratings'] ? fmt_num($pl['score']) : '–' ?></b>
+                <span>punti</span>
+              </div>
               <div class="place-body">
                 <a class="place-name" href="<?= e($pl['maps_url']) ?>" target="_blank" rel="noopener noreferrer"><?= e($pl['name']) ?> <span aria-hidden="true">↗</span></a>
                 <?php if ($chosen): ?><span class="badge">scelto</span><?php endif; ?>
                 <?php if ($pl['note']): ?><p class="place-note"><?= e($pl['note']) ?></p><?php endif; ?>
-                <p class="meta">proposto da <?= e($pl['author']) ?>
+                <div class="rating">
+                  <form method="post" action="action.php" class="stars" aria-label="Il tuo voto">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="action" value="rate_place">
+                    <input type="hidden" name="id" value="<?= (int)$pl['id'] ?>">
+                    <?php for ($s = 5; $s >= 1; $s--): // ordine inverso per l'effetto hover in CSS ?>
+                    <button name="stars" value="<?= $s ?>" class="star<?= $s <= (int)$pl['my_stars'] ? ' on' : '' ?>"
+                      title="<?= (int)$pl['my_stars'] === $s ? 'Togli il tuo voto' : $s . ' stell' . ($s === 1 ? 'a' : 'e') ?>">★</button>
+                    <?php endfor; ?>
+                  </form>
+                  <span class="meta">
+                    <?php if ((int)$pl['n_ratings']): ?>media <?= fmt_num($pl['avg']) ?> · <?= (int)$pl['n_ratings'] ?> vot<?= (int)$pl['n_ratings'] === 1 ? 'o' : 'i' ?><?php else: ?>nessun voto<?php endif; ?>
+                    <?php if ($pl['my_stars']): ?> · tu: <?= (int)$pl['my_stars'] ?>★<?php endif; ?>
+                  </span>
+                </div>
+                <div class="meta">proposto da <?= e($pl['author']) ?>
                   <?php if (!$isPast && !$chosen && can_manage($ev['user_id'])): ?> ·
                   <form method="post" action="action.php" class="inline">
                     <?= csrf_field() ?>
@@ -113,7 +157,20 @@ function event_card(array $ev, int $uid, array $places, bool $isPast = false): v
                   </form>
                   <?php endif; ?>
                   <?php if (can_manage($pl['user_id'])): ?> · <?= delete_button('delete_place', (int)$pl['id'], $back) ?><?php endif; ?>
-                </p>
+                </div>
+                <?php if (!$isPast && can_manage($pl['user_id'])): ?>
+                <details class="edit-place">
+                  <summary class="linkbtn">Modifica</summary>
+                  <form method="post" action="action.php" class="form place-form">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="action" value="edit_place">
+                    <input type="hidden" name="id" value="<?= (int)$pl['id'] ?>">
+                    <?php place_fields($pl); ?>
+                    <p class="muted small">Se cambi il nome del posto i voti ricevuti si azzerano: di fatto è una nuova proposta.</p>
+                    <button class="btn sm">Salva modifiche</button>
+                  </form>
+                </details>
+                <?php endif; ?>
               </div>
             </li>
             <?php endforeach; ?>
@@ -127,21 +184,7 @@ function event_card(array $ev, int $uid, array $places, bool $isPast = false): v
               <?= csrf_field() ?>
               <input type="hidden" name="action" value="propose_place">
               <input type="hidden" name="event_id" value="<?= $eid ?>">
-              <label>Cerca su Google Maps
-                <span class="maps-search">
-                  <input name="name" required maxlength="140" placeholder="Es. Trattoria Da Enzo, Trastevere" autocomplete="off" data-maps-query>
-                  <a class="btn sm ghost" href="https://www.google.com/maps" target="_blank" rel="noopener noreferrer" data-maps-open>Apri Maps ↗</a>
-                </span>
-              </label>
-              <div class="maps-preview" data-maps-preview hidden>
-                <iframe title="Anteprima Google Maps" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
-              </div>
-              <label>Link Google Maps <small class="muted">facoltativo: incolla il link "Condividi" del posto per essere precisi</small>
-                <input name="maps_url" type="url" maxlength="500" placeholder="https://maps.app.goo.gl/...">
-              </label>
-              <label>Perché questo posto? <small class="muted">facoltativo</small>
-                <input name="note" maxlength="300" placeholder="Prezzi, capienza, comodo dalla metro...">
-              </label>
+              <?php place_fields(); ?>
               <button class="btn sm">Allega la proposta</button>
             </form>
           </details>

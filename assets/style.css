@@ -302,6 +302,20 @@ input[type=file] { padding: 8px; }
 .place-name span { color: var(--coral); }
 .place-note { margin: 2px 0; font-size: .9rem; }
 .place .meta form.inline { display: inline; }
+.place-score { flex: none; width: 56px; text-align: center; border: 2px solid var(--ink); border-radius: 10px; padding: 6px 4px; background: #fff; line-height: 1.1; }
+.place-score b { display: block; font: 900 1.25rem var(--display); }
+.place-score span { font-size: .65rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.place.chosen .place-score { background: var(--teal); color: #fff; }
+.place.chosen .place-score span { color: #e6fffa; }
+.rating { display: flex; align-items: center; gap: 4px 10px; flex-wrap: wrap; margin: 4px 0 2px; }
+.stars { display: inline-flex; flex-direction: row-reverse; }
+.star { border: 0; background: none; padding: 0 1px; font-size: 1.35rem; line-height: 1; cursor: pointer; color: #d9d4c7; transition: color .12s, transform .12s; }
+.star.on { color: var(--sun); text-shadow: 0 0 0 var(--ink); }
+.stars:hover .star { color: #d9d4c7; }
+.stars .star:hover, .stars .star:hover ~ .star { color: var(--coral); transform: scale(1.12); }
+.edit-place { margin-top: 6px; }
+.edit-place .place-form { margin-top: 10px; }
+.small { font-size: .8rem; }
 .pvote { flex: none; border: 2px solid var(--ink); background: #fff; border-radius: 10px; font: 800 .85rem var(--display); padding: 6px 8px; cursor: pointer; min-width: 48px; }
 .pvote.on { background: var(--sun); }
 .pvote:disabled { cursor: default; opacity: .6; }

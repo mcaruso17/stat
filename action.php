@@ -83,22 +83,57 @@ switch ($_POST['action'] ?? '') {
         }
         $pdo->prepare('INSERT INTO event_places (event_id, user_id, name, maps_url, note, created_at) VALUES (?, ?, ?, ?, ?, ?)')
             ->execute([$eventId, $uid, $name, $url ?: maps_search_url($name), post_str('note', 300), time()]);
-        $pdo->prepare('INSERT OR IGNORE INTO place_votes (place_id, user_id) VALUES (?, ?)')->execute([$pdo->lastInsertId(), $uid]);
         flash('Proposta allegata.');
         redirect('index.php#ev' . $eventId);
 
-    case 'vote_place':
+    case 'rate_place':
+        $stars = (int)($_POST['stars'] ?? 0);
         $st = $pdo->prepare('SELECT event_id FROM event_places WHERE id = ?');
         $st->execute([$id]);
         $eventId = (int)$st->fetchColumn();
-        if ($eventId) {
-            $st = $pdo->prepare('DELETE FROM place_votes WHERE place_id = ? AND user_id = ?');
+        if ($eventId && $stars >= 1 && $stars <= 5) {
+            $st = $pdo->prepare('SELECT stars FROM place_ratings WHERE place_id = ? AND user_id = ?');
             $st->execute([$id, $uid]);
-            if (!$st->rowCount()) {
-                $pdo->prepare('INSERT INTO place_votes (place_id, user_id) VALUES (?, ?)')->execute([$id, $uid]);
+            if ((int)$st->fetchColumn() === $stars) {
+                // Stesso voto cliccato di nuovo: lo toglie.
+                $pdo->prepare('DELETE FROM place_ratings WHERE place_id = ? AND user_id = ?')->execute([$id, $uid]);
+            } else {
+                $pdo->prepare('INSERT OR REPLACE INTO place_ratings (place_id, user_id, stars) VALUES (?, ?, ?)')->execute([$id, $uid, $stars]);
             }
         }
         redirect('index.php#ev' . $eventId);
+
+    case 'edit_place':
+        $st = $pdo->prepare('SELECT p.*, e.location, e.location_url, e.event_date FROM event_places p JOIN events e ON e.id = p.event_id WHERE p.id = ?');
+        $st->execute([$id]);
+        $pl = $st->fetch();
+        if (!$pl || !can_manage($pl['user_id']) || $pl['event_date'] < date('Y-m-d')) redirect('index.php#eventi');
+        $back = 'index.php#ev' . (int)$pl['event_id'];
+        $name = post_str('name', 140);
+        $url = post_str('maps_url', 500);
+        if ($name === '') {
+            flash('Il nome del posto non può essere vuoto.', 'err');
+            redirect($back);
+        }
+        if ($url !== '' && !is_maps_url($url)) {
+            flash('Il link deve essere di Google Maps (google.com/maps o maps.app.goo.gl).', 'err');
+            redirect($back);
+        }
+        $url = $url ?: maps_search_url($name);
+        $nameChanged = mb_strtolower($name) !== mb_strtolower($pl['name']);
+        $wasChosen = $pl['location'] === $pl['name'] && $pl['location_url'] === $pl['maps_url'];
+        $pdo->beginTransaction();
+        $pdo->prepare('UPDATE event_places SET name = ?, maps_url = ?, note = ? WHERE id = ?')
+            ->execute([$name, $url, post_str('note', 300), $id]);
+        if ($nameChanged) {
+            $pdo->prepare('DELETE FROM place_ratings WHERE place_id = ? AND user_id != ?')->execute([$id, (int)$pl['user_id']]);
+        }
+        if ($wasChosen) {
+            $pdo->prepare('UPDATE events SET location = ?, location_url = ? WHERE id = ?')->execute([$name, $url, $pl['event_id']]);
+        }
+        $pdo->commit();
+        flash($nameChanged ? 'Proposta aggiornata. Hai cambiato posto, quindi i voti degli altri sono stati azzerati.' : 'Proposta aggiornata.');
+        redirect($back);
 
     case 'choose_place':
         $st = $pdo->prepare('SELECT p.*, e.user_id AS event_owner FROM event_places p JOIN events e ON e.id = p.event_id WHERE p.id = ?');

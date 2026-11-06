@@ -21,6 +21,18 @@ L'admin può:
 
 Per cambiare la password admin basta usare "Reimposta" sulla propria riga in `admin.php`. L'hash nel codice serve solo alla prima creazione dell'account.
 
+## Classifica dei luoghi proposti
+
+Ogni collega dà da 1 a 5 stelle ai luoghi proposti per un evento. La classifica usa una media bayesiana:
+
+```
+punteggio = (m · C + somma dei voti) / (C + numero di voti)
+```
+
+con `m = 3` (voto neutro) e `C = 10`: ogni luogo parte come se avesse 10 voti da 3 stelle. Un luogo sale davvero solo se lo votano in tanti: 4 voti da 4 stelle (3,3 punti) battono 1 voto da 5 (3,2 punti). I luoghi senza voti vanno in fondo. Si regola con `RATING_PRIOR_MEAN` e `RATING_PRIOR_WEIGHT` in `inc/bootstrap.php`: alzando `C` il numero di votanti pesa ancora di più.
+
+Chi ha proposto un luogo può modificarlo. Se cambia solo nota o link, i voti restano; se cambia il nome del posto, i voti degli altri si azzerano.
+
 ## Struttura
 
 | File | Ruolo |

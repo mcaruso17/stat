@@ -18,6 +18,12 @@ const QUIZ = [
 ];
 const QUIZ_MIN_CORRECT = 2;
 
+// Classifica dei luoghi: media bayesiana. Ogni luogo parte come se avesse
+// RATING_PRIOR_WEIGHT voti "fantasma" pari a RATING_PRIOR_MEAN; così conta
+// molto quante persone hanno votato, non solo la media.
+const RATING_PRIOR_MEAN = 3.0;
+const RATING_PRIOR_WEIGHT = 10;
+
 // Amministratore creato alla prima inizializzazione del database.
 // Nel codice c'è solo l'hash bcrypt, non la password in chiaro.
 const ADMIN_NAME = 'carusowski';
@@ -107,9 +113,11 @@ CREATE TABLE IF NOT EXISTS event_places (
     note TEXT NOT NULL DEFAULT '',
     created_at INTEGER NOT NULL
 );
-CREATE TABLE IF NOT EXISTS place_votes (
+DROP TABLE IF EXISTS place_votes;
+CREATE TABLE IF NOT EXISTS place_ratings (
     place_id INTEGER NOT NULL REFERENCES event_places(id) ON DELETE CASCADE,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    stars INTEGER NOT NULL CHECK (stars BETWEEN 1 AND 5),
     PRIMARY KEY (place_id, user_id)
 );
 CREATE TABLE IF NOT EXISTS documents (
@@ -265,6 +273,17 @@ function is_maps_url(string $url): bool
         || ($host === 'goo.gl' && str_starts_with($path, '/maps'))
         || preg_match('/^maps\.google\.[a-z.]+$/', $host)
         || (preg_match('/^(www\.)?google\.[a-z.]+$/', $host) && str_starts_with($path, '/maps'));
+}
+
+/** Punteggio ponderato: (m·C + somma voti) / (C + n). */
+function weighted_score(int $n, float $sum): float
+{
+    return (RATING_PRIOR_MEAN * RATING_PRIOR_WEIGHT + $sum) / (RATING_PRIOR_WEIGHT + $n);
+}
+
+function fmt_num(float $x): string
+{
+    return number_format($x, 1, ',', '');
 }
 
 const MONTHS = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
