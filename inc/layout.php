@@ -16,7 +16,8 @@ function page_start(string $title, bool $nav = true): void
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;700;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=1">
+<link rel="stylesheet" href="assets/style.css?v=3">
+<script>document.documentElement.classList.add('js')</script>
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 </head>
 <body>
@@ -59,8 +60,45 @@ function page_end(): void
     <span>Uno spazio informale tra colleghi statistici della Ragioneria. Correlazione non è causalità.</span>
   </div>
 </footer>
+<script src="assets/motion.js?v=1"></script>
 </body>
 </html>
+<?php
+}
+
+/**
+ * Apertura a schermo intero: la frase entra parola per parola e,
+ * scorrendo, si rimpicciolisce e sfuma (vedi assets/motion.js).
+ */
+function intro(string $kicker = '', string $extra = ''): void
+{
+    $i = 0;
+    $words = function (string $text, string $class = '') use (&$i): string {
+        $out = '';
+        foreach (preg_split('/\s+/u', trim($text)) as $w) {
+            $cls = 'w' . ($class ? " $class" : '');
+            $out .= '<span class="' . $cls . '" style="--i:' . $i++ . '">' . e($w) . '</span> ';
+        }
+        return $out;
+    };
+    $title = $words('Ciao, questo è il sito dedicato al') . $words('codice Stat!', 'hl');
+    $sub = $words('Qui possiamo organizzare') . $words('eventi,', 'c1') . $words('avere')
+        . $words('discussioni,', 'c2') . $words('condividere') . $words('opinioni', 'c3');
+    ?>
+<section class="intro" aria-label="Benvenuto">
+  <div class="intro-sticky">
+    <span class="ishape s1" aria-hidden="true"></span>
+    <span class="ishape s2" aria-hidden="true"></span>
+    <span class="ishape s3" aria-hidden="true"></span>
+    <div class="intro-inner">
+      <?php if ($kicker): ?><p class="kicker intro-kicker"><?= e($kicker) ?></p><?php endif; ?>
+      <h1 class="intro-title"><?= $title ?></h1>
+      <p class="intro-sub"><?= $sub ?></p>
+      <?php if ($extra): ?><div class="intro-extra" style="--i:<?= $i ?>"><?= $extra ?></div><?php endif; ?>
+    </div>
+    <span class="scroll-cue" aria-hidden="true">Scorri<i></i></span>
+  </div>
+</section>
 <?php
 }
 

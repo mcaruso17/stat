@@ -79,22 +79,10 @@ function event_card(array $ev, int $uid, bool $isPast = false): void
 
 page_start('Home');
 ?>
-<section class="hero">
-  <div class="wrap hero-grid">
-    <div>
-      <p class="kicker">Statistici in Ragioneria</p>
-      <h1>Ciao <?= e(explode(' ', $me['name'])[0]) ?>. Organizziamoci, discutiamo, condividiamo.</h1>
-      <p class="lead">Eventi del gruppo, un forum per lavoro, concorsi e nuove posizioni, materiali utili e l'elenco di chi c'è.</p>
-      <div class="hero-cta">
-        <a class="btn" href="#discussione">Apri un topic</a>
-        <a class="btn ghost light" href="#eventi">Prossimi eventi</a>
-      </div>
-    </div>
-    <div class="shapes" aria-hidden="true">
-      <span class="shape tri"></span><span class="shape half"></span><span class="shape dot"></span>
-    </div>
-  </div>
-</section>
+<?php intro(
+    'Bentornato/a, ' . explode(' ', $me['name'])[0],
+    '<a class="btn" href="#discussione">Apri un topic</a> <a class="btn ghost light" href="#eventi">Prossimi eventi</a>'
+); ?>
 
 <!-- EVENTI -->
 <section class="section" id="eventi">

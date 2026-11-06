@@ -27,7 +27,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 page_start('Accesso', false);
 ?>
-<section class="hero hero-gate">
+<?php if (!$error) intro('', '<a class="btn big" href="#quiz">Entra</a>'); ?>
+<section class="hero hero-gate" id="quiz">
   <div class="wrap hero-grid">
     <div>
       <p class="kicker">Area riservata</p>
