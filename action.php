@@ -67,6 +67,57 @@ switch ($_POST['action'] ?? '') {
         }
         redirect('index.php#eventi');
 
+    case 'propose_place':
+        $eventId = (int)($_POST['event_id'] ?? 0);
+        $name = post_str('name', 140);
+        $url = post_str('maps_url', 500);
+        $st = $pdo->prepare('SELECT 1 FROM events WHERE id = ? AND event_date >= ?');
+        $st->execute([$eventId, date('Y-m-d')]);
+        if (!$st->fetchColumn() || $name === '') {
+            flash('Indica almeno il nome del posto.', 'err');
+            redirect('index.php#eventi');
+        }
+        if ($url !== '' && !is_maps_url($url)) {
+            flash('Il link deve essere di Google Maps (google.com/maps o maps.app.goo.gl).', 'err');
+            redirect('index.php#ev' . $eventId);
+        }
+        $pdo->prepare('INSERT INTO event_places (event_id, user_id, name, maps_url, note, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+            ->execute([$eventId, $uid, $name, $url ?: maps_search_url($name), post_str('note', 300), time()]);
+        $pdo->prepare('INSERT OR IGNORE INTO place_votes (place_id, user_id) VALUES (?, ?)')->execute([$pdo->lastInsertId(), $uid]);
+        flash('Proposta allegata.');
+        redirect('index.php#ev' . $eventId);
+
+    case 'vote_place':
+        $st = $pdo->prepare('SELECT event_id FROM event_places WHERE id = ?');
+        $st->execute([$id]);
+        $eventId = (int)$st->fetchColumn();
+        if ($eventId) {
+            $st = $pdo->prepare('DELETE FROM place_votes WHERE place_id = ? AND user_id = ?');
+            $st->execute([$id, $uid]);
+            if (!$st->rowCount()) {
+                $pdo->prepare('INSERT INTO place_votes (place_id, user_id) VALUES (?, ?)')->execute([$id, $uid]);
+            }
+        }
+        redirect('index.php#ev' . $eventId);
+
+    case 'choose_place':
+        $st = $pdo->prepare('SELECT p.*, e.user_id AS event_owner FROM event_places p JOIN events e ON e.id = p.event_id WHERE p.id = ?');
+        $st->execute([$id]);
+        $pl = $st->fetch();
+        if ($pl && can_manage($pl['event_owner'])) {
+            $pdo->prepare('UPDATE events SET location = ?, location_url = ? WHERE id = ?')
+                ->execute([$pl['name'], $pl['maps_url'], $pl['event_id']]);
+            flash('Luogo scelto: ' . $pl['name'] . '.');
+        }
+        redirect('index.php#ev' . (int)($pl['event_id'] ?? 0));
+
+    case 'delete_place':
+        if (owned($pdo, 'event_places', $id, $uid)) {
+            $pdo->prepare('DELETE FROM event_places WHERE id = ?')->execute([$id]);
+            flash('Proposta eliminata.');
+        }
+        redirect(back('index.php#eventi'));
+
     case 'create_topic':
         $title = post_str('title', 200);
         $cat = in_array($_POST['category'] ?? '', TOPIC_CATEGORIES, true) ? $_POST['category'] : 'Varie';

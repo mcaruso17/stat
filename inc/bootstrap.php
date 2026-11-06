@@ -98,6 +98,20 @@ CREATE TABLE IF NOT EXISTS votes (
     value INTEGER NOT NULL CHECK (value IN (-1, 1)),
     PRIMARY KEY (user_id, target_type, target_id)
 );
+CREATE TABLE IF NOT EXISTS event_places (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    maps_url TEXT NOT NULL,
+    note TEXT NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS place_votes (
+    place_id INTEGER NOT NULL REFERENCES event_places(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    PRIMARY KEY (place_id, user_id)
+);
 CREATE TABLE IF NOT EXISTS documents (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -113,6 +127,10 @@ SQL);
     $cols = array_column($pdo->query('PRAGMA table_info(users)')->fetchAll(), 'name');
     if (!in_array('is_admin', $cols, true)) {
         $pdo->exec('ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0');
+    }
+    $evCols = array_column($pdo->query('PRAGMA table_info(events)')->fetchAll(), 'name');
+    if (!in_array('location_url', $evCols, true)) {
+        $pdo->exec("ALTER TABLE events ADD COLUMN location_url TEXT NOT NULL DEFAULT ''");
     }
     $st = $pdo->prepare('SELECT id FROM users WHERE name = ?');
     $st->execute([ADMIN_NAME]);
@@ -228,6 +246,25 @@ function can_manage($ownerId): bool
 {
     $u = current_user();
     return $u && ((int)$u['id'] === (int)$ownerId || !empty($u['is_admin']));
+}
+
+/** Link di ricerca Google Maps per un luogo (non serve chiave API). */
+function maps_search_url(string $query): string
+{
+    return 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode($query);
+}
+
+/** Accetta solo link Google Maps (anche quelli brevi di condivisione). */
+function is_maps_url(string $url): bool
+{
+    $p = parse_url($url);
+    if (!$p || ($p['scheme'] ?? '') !== 'https' || empty($p['host'])) return false;
+    $host = strtolower($p['host']);
+    $path = $p['path'] ?? '';
+    return $host === 'maps.app.goo.gl'
+        || ($host === 'goo.gl' && str_starts_with($path, '/maps'))
+        || preg_match('/^maps\.google\.[a-z.]+$/', $host)
+        || (preg_match('/^(www\.)?google\.[a-z.]+$/', $host) && str_starts_with($path, '/maps'));
 }
 
 const MONTHS = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];

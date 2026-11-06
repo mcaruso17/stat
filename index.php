@@ -21,6 +21,18 @@ $st = $pdo->prepare("$evSql WHERE e.event_date < :d ORDER BY e.event_date DESC L
 $st->execute([':uid' => $uid, ':d' => $today]);
 $past = $st->fetchAll();
 
+// Luoghi proposti, raggruppati per evento
+$st = $pdo->prepare('SELECT p.*, u.name AS author,
+    (SELECT COUNT(*) FROM place_votes v WHERE v.place_id = p.id) AS n_votes,
+    (SELECT COUNT(*) FROM place_votes v WHERE v.place_id = p.id AND v.user_id = ?) AS voted
+    FROM event_places p JOIN users u ON u.id = p.user_id
+    ORDER BY n_votes DESC, p.created_at ASC');
+$st->execute([$uid]);
+$places = [];
+foreach ($st->fetchAll() as $pl) {
+    $places[(int)$pl['event_id']][] = $pl;
+}
+
 // Discussione
 $sort = ($_GET['sort'] ?? 'new') === 'top' ? 'top' : 'new';
 $cat = in_array($_GET['cat'] ?? '', TOPIC_CATEGORIES, true) ? $_GET['cat'] : '';
@@ -46,18 +58,20 @@ $members = $pdo->query('SELECT u.*,
     (SELECT COUNT(*) FROM documents d WHERE d.user_id = u.id) AS n_docs
     FROM users u ORDER BY u.name COLLATE NOCASE')->fetchAll();
 
-function event_card(array $ev, int $uid, bool $isPast = false): void
+function event_card(array $ev, int $uid, array $places, bool $isPast = false): void
 {
     $ts = strtotime($ev['event_date']);
+    $eid = (int)$ev['id'];
+    $back = 'index.php#ev' . $eid;
     ?>
-    <article class="card event<?= $isPast ? ' past' : '' ?>">
+    <article class="card event<?= $isPast ? ' past' : '' ?>" id="ev<?= $eid ?>">
       <div class="datebox">
         <span class="d"><?= date('j', $ts) ?></span>
         <span class="m"><?= MONTHS[(int)date('n', $ts) - 1] ?></span>
         <span class="y"><?= date('Y', $ts) ?></span>
       </div>
       <div class="event-body">
-        <p class="label"><?= e(WEEKDAYS[(int)date('w', $ts)]) ?><?= $ev['event_time'] ? ' · ore ' . e($ev['event_time']) : '' ?><?= $ev['location'] ? ' · ' . e($ev['location']) : '' ?></p>
+        <p class="label"><?= e(WEEKDAYS[(int)date('w', $ts)]) ?><?= $ev['event_time'] ? ' · ore ' . e($ev['event_time']) : '' ?><?php if ($ev['location']): ?> · <?php if ($ev['location_url']): ?><a href="<?= e($ev['location_url']) ?>" target="_blank" rel="noopener noreferrer">📍 <?= e($ev['location']) ?></a><?php else: ?><?= e($ev['location']) ?><?php endif; ?><?php endif; ?></p>
         <h3><?= e($ev['title']) ?></h3>
         <?php if ($ev['description']): ?><p><?= rich($ev['description']) ?></p><?php endif; ?>
         <div class="event-foot">
@@ -71,6 +85,67 @@ function event_card(array $ev, int $uid, bool $isPast = false): void
           <?php endif; ?>
           <span class="muted" title="<?= e($ev['going_names'] ?? '') ?>"><?= (int)$ev['n_going'] ?> partecipant<?= (int)$ev['n_going'] === 1 ? 'e' : 'i' ?><?= $ev['going_names'] ? ': ' . e($ev['going_names']) : '' ?></span>
           <?php if (can_manage($ev['user_id'])): ?><?= delete_button('delete_event', (int)$ev['id'], 'index.php#eventi') ?><?php endif; ?>
+        </div>
+
+        <div class="places">
+          <?php if ($places): ?>
+          <p class="places-title">Luoghi proposti <span><?= count($places) ?></span></p>
+          <ul class="place-list">
+            <?php foreach ($places as $pl): $chosen = $ev['location_url'] === $pl['maps_url'] && $ev['location'] === $pl['name']; ?>
+            <li class="place<?= $chosen ? ' chosen' : '' ?>">
+              <form method="post" action="action.php" class="inline">
+                <?= csrf_field() ?>
+                <input type="hidden" name="action" value="vote_place">
+                <input type="hidden" name="id" value="<?= (int)$pl['id'] ?>">
+                <button class="pvote<?= $pl['voted'] ? ' on' : '' ?>" <?= $isPast ? 'disabled' : '' ?> title="<?= $pl['voted'] ? 'Togli il voto' : 'Vota questo luogo' ?>">▲ <?= (int)$pl['n_votes'] ?></button>
+              </form>
+              <div class="place-body">
+                <a class="place-name" href="<?= e($pl['maps_url']) ?>" target="_blank" rel="noopener noreferrer"><?= e($pl['name']) ?> <span aria-hidden="true">↗</span></a>
+                <?php if ($chosen): ?><span class="badge">scelto</span><?php endif; ?>
+                <?php if ($pl['note']): ?><p class="place-note"><?= e($pl['note']) ?></p><?php endif; ?>
+                <p class="meta">proposto da <?= e($pl['author']) ?>
+                  <?php if (!$isPast && !$chosen && can_manage($ev['user_id'])): ?> ·
+                  <form method="post" action="action.php" class="inline">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="action" value="choose_place">
+                    <input type="hidden" name="id" value="<?= (int)$pl['id'] ?>">
+                    <button class="linkbtn">Scegli questo</button>
+                  </form>
+                  <?php endif; ?>
+                  <?php if (can_manage($pl['user_id'])): ?> · <?= delete_button('delete_place', (int)$pl['id'], $back) ?><?php endif; ?>
+                </p>
+              </div>
+            </li>
+            <?php endforeach; ?>
+          </ul>
+          <?php endif; ?>
+
+          <?php if (!$isPast): ?>
+          <details class="propose">
+            <summary class="linkbtn">📍 Vuoi proporre una location?</summary>
+            <form method="post" action="action.php" class="form place-form">
+              <?= csrf_field() ?>
+              <input type="hidden" name="action" value="propose_place">
+              <input type="hidden" name="event_id" value="<?= $eid ?>">
+              <label>Cerca su Google Maps
+                <span class="maps-search">
+                  <input name="name" required maxlength="140" placeholder="Es. Trattoria Da Enzo, Trastevere" autocomplete="off" data-maps-query>
+                  <a class="btn sm ghost" href="https://www.google.com/maps" target="_blank" rel="noopener noreferrer" data-maps-open>Apri Maps ↗</a>
+                </span>
+              </label>
+              <div class="maps-preview" data-maps-preview hidden>
+                <iframe title="Anteprima Google Maps" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+              </div>
+              <label>Link Google Maps <small class="muted">facoltativo: incolla il link "Condividi" del posto per essere precisi</small>
+                <input name="maps_url" type="url" maxlength="500" placeholder="https://maps.app.goo.gl/...">
+              </label>
+              <label>Perché questo posto? <small class="muted">facoltativo</small>
+                <input name="note" maxlength="300" placeholder="Prezzi, capienza, comodo dalla metro...">
+              </label>
+              <button class="btn sm">Allega la proposta</button>
+            </form>
+          </details>
+          <?php endif; ?>
         </div>
       </div>
     </article>
@@ -107,12 +182,12 @@ page_start('Home');
     </div>
     <?php if (!$upcoming): ?><p class="empty">Nessun evento in programma. Proponine uno!</p><?php endif; ?>
     <div class="events">
-      <?php foreach ($upcoming as $ev) event_card($ev, $uid); ?>
+      <?php foreach ($upcoming as $ev) event_card($ev, $uid, $places[(int)$ev['id']] ?? []); ?>
     </div>
     <?php if ($past): ?>
     <details class="past-events">
       <summary>Eventi passati (<?= count($past) ?>)</summary>
-      <div class="events"><?php foreach ($past as $ev) event_card($ev, $uid, true); ?></div>
+      <div class="events"><?php foreach ($past as $ev) event_card($ev, $uid, $places[(int)$ev['id']] ?? [], true); ?></div>
     </details>
     <?php endif; ?>
   </div>
