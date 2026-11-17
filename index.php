@@ -64,6 +64,20 @@ function place_fields(?array $pl = null): void
     <?php
 }
 
+// Sondaggi sulla data, raggruppati per evento
+$st = $pdo->prepare('SELECT o.*,
+    (SELECT COUNT(*) FROM date_votes v WHERE v.option_id = o.id) AS n_yes,
+    (SELECT COUNT(*) FROM date_votes v WHERE v.option_id = o.id AND v.user_id = ?) AS mine,
+    (SELECT GROUP_CONCAT(u.name, \', \') FROM date_votes v JOIN users u ON u.id = v.user_id WHERE v.option_id = o.id) AS names
+    FROM date_options o ORDER BY o.option_date');
+$st->execute([$uid]);
+$dateOptions = [];
+foreach ($st->fetchAll() as $o) {
+    $dateOptions[(int)$o['event_id']][] = $o;
+}
+$st = $pdo->query('SELECT o.event_id, COUNT(DISTINCT v.user_id) FROM date_votes v JOIN date_options o ON o.id = v.option_id GROUP BY o.event_id');
+$pollVoters = $st->fetchAll(PDO::FETCH_KEY_PAIR);
+
 // Discussione
 $sort = ($_GET['sort'] ?? 'new') === 'top' ? 'top' : 'new';
 $cat = array_key_exists($_GET['cat'] ?? '', categories()) ? $_GET['cat'] : '';
@@ -89,10 +103,112 @@ $members = $pdo->query('SELECT u.*,
     (SELECT COUNT(*) FROM documents d WHERE d.user_id = u.id) AS n_docs
     FROM users u ORDER BY u.name COLLATE NOCASE')->fetchAll();
 
-function event_card(array $ev, int $uid, array $places, bool $isPast = false): void
+/** Sondaggio di disponibilità sulla data dell'evento. */
+function date_poll(array $ev, array $options, int $voters, bool $isPast): void
+{
+    $eid = (int)$ev['id'];
+    $open = !(int)$ev['date_confirmed'] && !$isPast;
+    $manage = can_manage($ev['user_id']) && !$isPast;
+    if (!$options && !$manage) return;
+    if (!$options && $manage) {
+        // Nessun sondaggio: solo l'opzione per crearlo.
+        ?>
+        <div class="poll poll-empty">
+          <span class="muted small">La data non va bene a tutti?</span>
+          <?= open_button('poll-add-' . $eid, 'Crea un sondaggio sulla data', 'linkbtn', 'calendar') ?>
+        </div>
+        <?php
+        poll_add_sheet($ev, true);
+        return;
+    }
+    $max = max(array_map(fn($o) => (int)$o['n_yes'], $options));
+    ?>
+    <div class="poll<?= $open ? '' : ' closed' ?>">
+      <div class="places-head">
+        <p class="places-title"><?= $open ? 'Quando ci vediamo?' : 'Sondaggio sulla data' ?>
+          <span class="count" title="Persone che hanno risposto"><?= $voters ?></span></p>
+        <span class="muted small"><?= $open ? 'Segna tutti i giorni in cui puoi esserci.' : 'Data fissata.' ?></span>
+      </div>
+      <div class="poll-grid">
+        <?php foreach ($options as $o):
+            $ots = strtotime($o['option_date']);
+            $n = (int)$o['n_yes'];
+            $best = $max > 0 && $n === $max;
+            $fixed = (int)$ev['date_confirmed'] && $o['option_date'] === $ev['event_date'];
+            $cls = ($o['mine'] ? ' mine' : '') . ($best && $open ? ' best' : '') . ($fixed ? ' fixed' : '');
+            $title = $n ? 'Disponibili: ' . $o['names'] : 'Ancora nessuno';
+        ?>
+        <div class="poll-opt<?= $cls ?>">
+          <?php if ($best && $open): ?><span class="poll-flag">Più disponibili</span><?php elseif ($fixed): ?><span class="poll-flag">Scelta</span><?php endif; ?>
+          <form method="post" action="action.php">
+            <?= csrf_field() ?>
+            <input type="hidden" name="action" value="toggle_date">
+            <input type="hidden" name="id" value="<?= (int)$o['id'] ?>">
+            <button class="poll-btn" <?= $open ? '' : 'disabled' ?> title="<?= e($title) ?>" aria-pressed="<?= $o['mine'] ? 'true' : 'false' ?>">
+              <span class="poll-wd"><?= WEEKDAYS_SHORT[(int)date('w', $ots)] ?></span>
+              <span class="poll-d"><?= date('j', $ots) ?></span>
+              <span class="poll-m"><?= MONTHS[(int)date('n', $ots) - 1] ?></span>
+              <span class="poll-bar"><i style="width:<?= $max ? round($n / $max * 100) : 0 ?>%"></i></span>
+              <span class="poll-n"><?= $n ?> disponibil<?= $n === 1 ? 'e' : 'i' ?></span>
+              <span class="poll-check"><?= icon('check') ?><?= $o['mine'] ? 'Ci sono' : ($open ? 'Posso' : '') ?></span>
+            </button>
+          </form>
+          <?php if ($manage && $open): ?>
+          <div class="poll-admin">
+            <form method="post" action="action.php" class="inline">
+              <?= csrf_field() ?>
+              <input type="hidden" name="action" value="fix_date">
+              <input type="hidden" name="id" value="<?= (int)$o['id'] ?>">
+              <button class="linkbtn strong">Fissa</button>
+            </form>
+            <?= delete_button('delete_date_option', (int)$o['id'], 'index.php#ev' . $eid, 'Togli') ?>
+          </div>
+          <?php endif; ?>
+        </div>
+        <?php endforeach; ?>
+      </div>
+      <?php if ($manage): ?>
+      <div class="poll-foot">
+        <?php if ($open): ?>
+          <?php if (count($options) < MAX_DATE_OPTIONS): ?><?= open_button('poll-add-' . $eid, 'Aggiungi una data', 'linkbtn', 'plus') ?><?php endif; ?>
+          <span class="muted small">Chi organizza fissa la data quando il quadro è chiaro.</span>
+        <?php else: ?>
+          <form method="post" action="action.php" class="inline">
+            <?= csrf_field() ?>
+            <input type="hidden" name="action" value="reopen_date_poll">
+            <input type="hidden" name="id" value="<?= $eid ?>">
+            <button class="linkbtn">Riapri il sondaggio</button>
+          </form>
+        <?php endif; ?>
+      </div>
+      <?php if ($open) poll_add_sheet($ev, false); ?>
+      <?php endif; ?>
+    </div>
+    <?php
+}
+
+function poll_add_sheet(array $ev, bool $create): void
+{
+    $eid = (int)$ev['id'];
+    sheet_start('poll-add-' . $eid, $create ? 'Sondaggio sulla data' : 'Aggiungi una data', $ev['title']);
+    ?>
+    <form method="post" action="action.php" class="form">
+      <?= csrf_field() ?>
+      <input type="hidden" name="action" value="add_date_option">
+      <input type="hidden" name="event_id" value="<?= $eid ?>">
+      <?php if ($create): ?><p class="muted small">La data attuale (<?= date('j', strtotime($ev['event_date'])) ?> <?= MONTHS_LONG[(int)date('n', strtotime($ev['event_date'])) - 1] ?>) entra nel sondaggio insieme a quella che aggiungi. Potrai aggiungerne altre.</p><?php endif; ?>
+      <label>Data da proporre <input type="date" name="option_date" required min="<?= date('Y-m-d') ?>"></label>
+      <button class="btn"><?= $create ? 'Crea il sondaggio' : 'Aggiungi' ?></button>
+    </form>
+    <?php
+    sheet_end();
+}
+
+function event_card(array $ev, int $uid, array $places, bool $isPast = false, array $options = [], int $voters = 0): void
 {
     $ts = strtotime($ev['event_date']);
     $eid = (int)$ev['id'];
+    $tbd = !(int)$ev['date_confirmed'] && $options;
     $back = 'index.php#ev' . $eid;
     $going = $ev['going_names'] ? explode(', ', $ev['going_names']) : [];
     ?>
@@ -100,10 +216,14 @@ function event_card(array $ev, int $uid, array $places, bool $isPast = false): v
       <div class="event-top">
         <div class="cal" aria-hidden="true">
           <span class="cal-m"><?= MONTHS[(int)date('n', $ts) - 1] ?></span>
-          <span class="cal-d"><?= date('j', $ts) ?></span>
+          <span class="cal-d"><?= $tbd ? '?' : date('j', $ts) ?></span>
         </div>
         <div class="event-main">
+          <?php if ($tbd): ?>
+          <p class="event-when">Data da scegliere: <?= implode(', ', array_map(fn($o) => date('j', strtotime($o['option_date'])), array_slice($options, 0, -1))) ?><?= count($options) > 1 ? ' o ' : '' ?><?= date('j', strtotime(end($options)['option_date'])) ?> <?= MONTHS_LONG[(int)date('n', strtotime(end($options)['option_date'])) - 1] ?><?= $ev['event_time'] ? ' · ore ' . e($ev['event_time']) : '' ?></p>
+          <?php else: ?>
           <p class="event-when"><?= e(ucfirst(WEEKDAYS[(int)date('w', $ts)])) ?> <?= date('j', $ts) ?> <?= MONTHS_LONG[(int)date('n', $ts) - 1] ?> <?= date('Y', $ts) ?><?= $ev['event_time'] ? ' · ore ' . e($ev['event_time']) : '' ?></p>
+          <?php endif; ?>
           <h3><?= e($ev['title']) ?></h3>
           <?php if ($ev['location']): ?>
           <p class="event-where"><?= icon('pin') ?>
@@ -115,10 +235,12 @@ function event_card(array $ev, int $uid, array $places, bool $isPast = false): v
       <?php if ($ev['description']): ?><p class="event-desc"><?= rich($ev['description']) ?></p><?php endif; ?>
 
       <div class="event-people">
+        <?php if ($going): ?>
         <div class="stack">
           <?php foreach (array_slice($going, 0, 5) as $g): ?><span class="avatar xs" style="background:<?= avatar_color($g) ?>" title="<?= e($g) ?>"><?= e(initials($g)) ?></span><?php endforeach; ?>
           <?php if (count($going) > 5): ?><span class="avatar xs more">+<?= count($going) - 5 ?></span><?php endif; ?>
         </div>
+        <?php endif; ?>
         <span class="muted" title="<?= e($ev['going_names'] ?? '') ?>"><?= (int)$ev['n_going'] ?> partecipant<?= (int)$ev['n_going'] === 1 ? 'e' : 'i' ?></span>
         <span class="grow"></span>
         <?php if (can_manage($ev['user_id'])): ?><?= delete_button('delete_event', $eid, 'index.php#eventi') ?><?php endif; ?>
@@ -131,6 +253,8 @@ function event_card(array $ev, int $uid, array $places, bool $isPast = false): v
         </form>
         <?php endif; ?>
       </div>
+
+      <?php date_poll($ev, $options, $voters, $isPast); ?>
 
       <div class="places">
         <div class="places-head">
@@ -228,12 +352,12 @@ intro(
         open_button('sheet-event', 'Nuovo evento')); ?>
     <?php if (!$upcoming): ?><p class="empty">Nessun evento in programma. Proponine uno.</p><?php endif; ?>
     <div class="events">
-      <?php foreach ($upcoming as $ev) event_card($ev, $uid, $places[(int)$ev['id']] ?? []); ?>
+      <?php foreach ($upcoming as $ev) event_card($ev, $uid, $places[(int)$ev['id']] ?? [], false, $dateOptions[(int)$ev['id']] ?? [], (int)($pollVoters[$ev['id']] ?? 0)); ?>
     </div>
     <?php if ($past): ?>
     <details class="past-events">
       <summary>Eventi passati <span class="count"><?= count($past) ?></span><?= icon('down') ?></summary>
-      <div class="events"><?php foreach ($past as $ev) event_card($ev, $uid, $places[(int)$ev['id']] ?? [], true); ?></div>
+      <div class="events"><?php foreach ($past as $ev) event_card($ev, $uid, $places[(int)$ev['id']] ?? [], true, $dateOptions[(int)$ev['id']] ?? [], (int)($pollVoters[$ev['id']] ?? 0)); ?></div>
     </details>
     <?php endif; ?>
   </div>

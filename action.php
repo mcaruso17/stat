@@ -67,6 +67,91 @@ switch ($_POST['action'] ?? '') {
         }
         redirect('index.php#eventi');
 
+    case 'toggle_date':
+        $st = $pdo->prepare('SELECT o.event_id FROM date_options o JOIN events e ON e.id = o.event_id
+            WHERE o.id = ? AND e.date_confirmed = 0 AND o.option_date >= ?');
+        $st->execute([$id, date('Y-m-d')]);
+        $eventId = (int)$st->fetchColumn();
+        if ($eventId) {
+            $st = $pdo->prepare('DELETE FROM date_votes WHERE option_id = ? AND user_id = ?');
+            $st->execute([$id, $uid]);
+            if (!$st->rowCount()) {
+                $pdo->prepare('INSERT INTO date_votes (option_id, user_id) VALUES (?, ?)')->execute([$id, $uid]);
+            }
+        }
+        redirect('index.php#ev' . $eventId);
+
+    case 'add_date_option':
+        $eventId = (int)($_POST['event_id'] ?? 0);
+        $date = post_str('option_date', 10);
+        $st = $pdo->prepare('SELECT * FROM events WHERE id = ?');
+        $st->execute([$eventId]);
+        $ev = $st->fetch();
+        if (!$ev || !can_manage($ev['user_id'])) redirect('index.php#eventi');
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || !strtotime($date) || $date < date('Y-m-d')) {
+            flash('Scegli una data valida, da oggi in poi.', 'err');
+            redirect('index.php#ev' . $eventId);
+        }
+        $st = $pdo->prepare('SELECT COUNT(*) FROM date_options WHERE event_id = ?');
+        $st->execute([$eventId]);
+        $n = (int)$st->fetchColumn();
+        if ($n >= MAX_DATE_OPTIONS) {
+            flash('Massimo ' . MAX_DATE_OPTIONS . ' date per sondaggio.', 'err');
+            redirect('index.php#ev' . $eventId);
+        }
+        $pdo->beginTransaction();
+        $ins = $pdo->prepare('INSERT OR IGNORE INTO date_options (event_id, option_date) VALUES (?, ?)');
+        if ($n === 0) {
+            // Nuovo sondaggio: anche la data attuale diventa un'opzione.
+            $ins->execute([$eventId, $ev['event_date']]);
+            $pdo->prepare('UPDATE events SET date_confirmed = 0 WHERE id = ?')->execute([$eventId]);
+        }
+        $ins->execute([$eventId, $date]);
+        sync_poll_date($pdo, $eventId);
+        $pdo->commit();
+        flash($n === 0 ? 'Sondaggio creato.' : 'Data aggiunta al sondaggio.');
+        redirect('index.php#ev' . $eventId);
+
+    case 'delete_date_option':
+        $st = $pdo->prepare('SELECT o.event_id, e.user_id FROM date_options o JOIN events e ON e.id = o.event_id WHERE o.id = ?');
+        $st->execute([$id]);
+        $row = $st->fetch();
+        if ($row && can_manage($row['user_id'])) {
+            $eventId = (int)$row['event_id'];
+            $pdo->beginTransaction();
+            $pdo->prepare('DELETE FROM date_options WHERE id = ?')->execute([$id]);
+            $st = $pdo->prepare('SELECT COUNT(*) FROM date_options WHERE event_id = ?');
+            $st->execute([$eventId]);
+            if ((int)$st->fetchColumn() === 0) {
+                $pdo->prepare('UPDATE events SET date_confirmed = 1 WHERE id = ?')->execute([$eventId]);
+            }
+            sync_poll_date($pdo, $eventId);
+            $pdo->commit();
+            flash('Data tolta dal sondaggio.');
+            redirect('index.php#ev' . $eventId);
+        }
+        redirect('index.php#eventi');
+
+    case 'fix_date':
+        $st = $pdo->prepare('SELECT o.*, e.user_id FROM date_options o JOIN events e ON e.id = o.event_id WHERE o.id = ?');
+        $st->execute([$id]);
+        $o = $st->fetch();
+        if ($o && can_manage($o['user_id'])) {
+            $pdo->prepare('UPDATE events SET event_date = ?, date_confirmed = 1 WHERE id = ?')->execute([$o['option_date'], $o['event_id']]);
+            $ts = strtotime($o['option_date']);
+            flash('Data fissata: ' . WEEKDAYS[(int)date('w', $ts)] . ' ' . date('j', $ts) . ' ' . MONTHS_LONG[(int)date('n', $ts) - 1] . '.');
+            redirect('index.php#ev' . (int)$o['event_id']);
+        }
+        redirect('index.php#eventi');
+
+    case 'reopen_date_poll':
+        if (owned($pdo, 'events', $id, $uid)) {
+            $pdo->prepare('UPDATE events SET date_confirmed = 0 WHERE id = ?')->execute([$id]);
+            sync_poll_date($pdo, $id);
+            flash('Sondaggio riaperto.');
+        }
+        redirect('index.php#ev' . $id);
+
     case 'propose_place':
         $eventId = (int)($_POST['event_id'] ?? 0);
         $name = post_str('name', 140);

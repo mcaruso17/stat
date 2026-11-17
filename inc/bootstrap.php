@@ -129,6 +129,17 @@ CREATE TABLE IF NOT EXISTS categories (
     name TEXT NOT NULL UNIQUE COLLATE NOCASE,
     color TEXT NOT NULL DEFAULT 'c-gray'
 );
+CREATE TABLE IF NOT EXISTS date_options (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    option_date TEXT NOT NULL,
+    UNIQUE (event_id, option_date)
+);
+CREATE TABLE IF NOT EXISTS date_votes (
+    option_id INTEGER NOT NULL REFERENCES date_options(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    PRIMARY KEY (option_id, user_id)
+);
 CREATE TABLE IF NOT EXISTS documents (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -148,6 +159,10 @@ SQL);
     $evCols = array_column($pdo->query('PRAGMA table_info(events)')->fetchAll(), 'name');
     if (!in_array('location_url', $evCols, true)) {
         $pdo->exec("ALTER TABLE events ADD COLUMN location_url TEXT NOT NULL DEFAULT ''");
+    }
+    if (!in_array('date_confirmed', $evCols, true)) {
+        // 0 = data ancora in votazione nel sondaggio
+        $pdo->exec('ALTER TABLE events ADD COLUMN date_confirmed INTEGER NOT NULL DEFAULT 1');
     }
     $st = $pdo->prepare('SELECT id FROM users WHERE name = ?');
     $st->execute([ADMIN_NAME]);
@@ -176,6 +191,25 @@ SQL);
             ]);
         $pdo->exec("INSERT INTO meta (k, v) VALUES ('seeded', '1')");
     }
+
+    // Sondaggio sulla data della cena: 2-5 dicembre (una sola volta).
+    if (!$pdo->query("SELECT v FROM meta WHERE k = 'date_poll_seeded'")->fetchColumn()) {
+        $cena = $pdo->query("SELECT id FROM events WHERE title = 'Cena per l''anno di servizio' AND user_id IS NULL ORDER BY id LIMIT 1")->fetchColumn();
+        if ($cena) {
+            $ins = $pdo->prepare('INSERT OR IGNORE INTO date_options (event_id, option_date) VALUES (?, ?)');
+            foreach (['2026-12-02', '2026-12-03', '2026-12-04', '2026-12-05'] as $d) $ins->execute([$cena, $d]);
+            $pdo->prepare('UPDATE events SET date_confirmed = 0, event_date = ? WHERE id = ?')->execute(['2026-12-02', $cena]);
+        }
+        $pdo->exec("INSERT INTO meta (k, v) VALUES ('date_poll_seeded', '1')");
+    }
+}
+
+/** Mantiene event_date sulla prima opzione del sondaggio finché la data non è fissata. */
+function sync_poll_date(PDO $pdo, int $eventId): void
+{
+    $pdo->prepare('UPDATE events SET event_date = (SELECT MIN(option_date) FROM date_options WHERE event_id = ?)
+        WHERE id = ? AND date_confirmed = 0 AND EXISTS (SELECT 1 FROM date_options WHERE event_id = ?)')
+        ->execute([$eventId, $eventId, $eventId]);
 }
 
 // ---------- helper ----------
@@ -316,6 +350,9 @@ function category_class(string $name): string
 {
     return categories()[$name] ?? 'c-gray';
 }
+
+const WEEKDAYS_SHORT = ['dom', 'lun', 'mar', 'mer', 'gio', 'ven', 'sab'];
+const MAX_DATE_OPTIONS = 10;
 
 const MONTHS = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
 const MONTHS_LONG = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto',
