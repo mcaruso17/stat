@@ -308,7 +308,7 @@ function event_card(array $ev, int $uid, array $places, bool $isPast = false, ar
             <?php if ($hasCmp): ?>
             <div class="seg small" data-sort-list="pl-<?= $eid ?>" role="group" aria-label="Ordina le proposte">
               <button type="button" class="on" data-sort="votes">Voti</button>
-              <button type="button" data-sort="cost">Comodità</button>
+              <button type="button" data-sort="cost">Posizione strategica</button>
             </div>
             <?php endif; ?>
             <?= open_button('voting-help', 'Come funziona', 'linkbtn help-link', 'info') ?>
@@ -319,8 +319,15 @@ function event_card(array $ev, int $uid, array $places, bool $isPast = false, ar
         <ul class="place-list" id="pl-<?= $eid ?>">
           <?php foreach ($places as $i => $pl): $chosen = $ev['location_url'] === $pl['maps_url'] && $ev['location'] === $pl['name']; $nr = (int)$pl['n_ratings']; $g = $geo[(int)$pl['id']] ?? null; ?>
           <li class="place<?= $chosen ? ' chosen' : '' ?>" data-votes="<?= $i ?>" data-cost="<?= $g && $g['cmp'] ? round($g['cmp']['cost'], 2) : 9999 ?>">
-            <div class="place-score" title="Punteggio ponderato: premia i luoghi votati da più persone">
-              <b><?= $nr ? fmt_num($pl['score']) : '–' ?></b><span>punti</span>
+            <div class="scores">
+              <div class="place-score" title="Voti: media ponderata che premia i luoghi votati da più persone">
+                <b><?= $nr ? fmt_num($pl['score']) : '–' ?></b><span>voti</span>
+              </div>
+              <?php if ($hasCmp): $strat = $g && $g['cmp'] ? (int)round(100 * $geo[$bestId]['cmp']['cost'] / $g['cmp']['cost']) : null; ?>
+              <div class="place-score strat<?= $strat === 100 ? ' top' : '' ?>" title="Posizione strategica: 100 è il miglior compromesso tra le location proposte, le altre in proporzione">
+                <b><?= $strat ?? '–' ?></b><span>posizione</span>
+              </div>
+              <?php endif; ?>
             </div>
             <div class="place-body">
               <div class="place-line">
@@ -613,8 +620,9 @@ intro(
       <p class="muted small">Un solo entusiasta non basta: per salire in cima serve il gradimento di molti. I posti ancora senza voti stanno in fondo.</p>
     </li>
     <li>
-      <h3>Comodità</h3>
-      <p>Ogni proposta mostra la <b>metro più vicina</b> e quanto è comoda per il gruppo: un tempo di viaggio stimato con i mezzi da ogni zona, la <b>media</b> e il <b>caso peggiore</b>. Il <b>miglior compromesso</b> è il posto con il valore più basso di ½ media + ½ massimo: così non vince un posto comodissimo per molti ma lontanissimo per qualcuno.</p>
+      <h3>Posizione strategica</h3>
+      <p>Ogni proposta mostra la <b>metro più vicina</b> e quanto è comoda per il gruppo: un tempo di viaggio stimato con i mezzi da ogni zona, la <b>media</b> e il <b>caso peggiore</b>. Da questi si calcola il costo di ogni posto, ½ media + ½ massimo: così non vince un posto comodissimo per molti ma lontanissimo per qualcuno.</p>
+      <p>Il punteggio <b>Posizione strategica</b> è <b>relativo alle location segnalate</b>: 100 è il miglior compromesso tra le proposte, le altre prendono un valore in proporzione (costo del migliore ÷ costo del posto × 100). Un 80 significa un costo del 25% più alto del migliore. Attenzione: se tutte le proposte sono scomode, la migliore prende comunque 100. Per questo restano visibili anche i minuti.</p>
       <p>Il calcolo usa chi ha detto "Partecipo" e ha indicato la zona nel profilo; se sono meno di due, usa tutti i membri con la zona. Le <b>zone più comode</b> sono le stazioni della metro dove questo valore è minimo: un buon punto da cui cercare un locale.</p>
       <p class="muted small">I tempi sono stime: a piedi, metro (attese e cambi inclusi) o bus/auto in città, con distanze in linea d'aria. Servono a confrontare le proposte, non a sostituire il navigatore.</p>
     </li>
