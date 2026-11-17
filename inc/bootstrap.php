@@ -34,6 +34,7 @@ const ADMIN_NAME = 'carusowski';
 const ADMIN_PASSWORD_HASH = '$2y$12$AfETVGhqGH7pcjalkm5xp.YzOWhUCPc1n/IoL4eYYAjnmwiDw4rVC';
 
 date_default_timezone_set('Europe/Rome');
+require __DIR__ . '/geo.php';
 
 session_set_cookie_params([
     'httponly' => true,
@@ -159,6 +160,19 @@ SQL);
     $evCols = array_column($pdo->query('PRAGMA table_info(events)')->fetchAll(), 'name');
     if (!in_array('location_url', $evCols, true)) {
         $pdo->exec("ALTER TABLE events ADD COLUMN location_url TEXT NOT NULL DEFAULT ''");
+    }
+    $plCols = array_column($pdo->query('PRAGMA table_info(event_places)')->fetchAll(), 'name');
+    if (!in_array('lat', $plCols, true)) {
+        $pdo->exec("ALTER TABLE event_places ADD COLUMN address TEXT NOT NULL DEFAULT ''");
+        $pdo->exec('ALTER TABLE event_places ADD COLUMN lat REAL');
+        $pdo->exec('ALTER TABLE event_places ADD COLUMN lon REAL');
+        $pdo->exec('ALTER TABLE event_places ADD COLUMN geo_tried INTEGER NOT NULL DEFAULT 0');
+    }
+    $uCols = array_column($pdo->query('PRAGMA table_info(users)')->fetchAll(), 'name');
+    if (!in_array('zone', $uCols, true)) {
+        $pdo->exec("ALTER TABLE users ADD COLUMN zone TEXT NOT NULL DEFAULT ''");
+        $pdo->exec('ALTER TABLE users ADD COLUMN zone_lat REAL');
+        $pdo->exec('ALTER TABLE users ADD COLUMN zone_lon REAL');
     }
     if (!in_array('date_confirmed', $evCols, true)) {
         // 0 = data ancora in votazione nel sondaggio

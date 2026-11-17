@@ -166,9 +166,11 @@ switch ($_POST['action'] ?? '') {
             flash('Il link deve essere di Google Maps (google.com/maps o maps.app.goo.gl).', 'err');
             redirect('index.php#ev' . $eventId);
         }
-        $pdo->prepare('INSERT INTO event_places (event_id, user_id, name, maps_url, note, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-            ->execute([$eventId, $uid, $name, $url ?: maps_search_url($name), post_str('note', 300), time()]);
-        flash('Proposta allegata.');
+        $address = post_str('address', 160);
+        $pos = locate_place($name, $address, $url);
+        $pdo->prepare('INSERT INTO event_places (event_id, user_id, name, maps_url, note, address, lat, lon, geo_tried, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)')
+            ->execute([$eventId, $uid, $name, $url ?: maps_search_url($name), post_str('note', 300), $address, $pos[0] ?? null, $pos[1] ?? null, time()]);
+        flash($pos ? 'Proposta allegata.' : 'Proposta allegata, ma non ho trovato il posto sulla mappa: aggiungi l\'indirizzo per avere metro e compromesso.', $pos ? 'ok' : 'err');
         redirect('index.php#ev' . $eventId);
 
     case 'rate_place':
@@ -208,8 +210,11 @@ switch ($_POST['action'] ?? '') {
         $nameChanged = mb_strtolower($name) !== mb_strtolower($pl['name']);
         $wasChosen = $pl['location'] === $pl['name'] && $pl['location_url'] === $pl['maps_url'];
         $pdo->beginTransaction();
-        $pdo->prepare('UPDATE event_places SET name = ?, maps_url = ?, note = ? WHERE id = ?')
-            ->execute([$name, $url, post_str('note', 300), $id]);
+        $address = post_str('address', 160);
+        $pos = ($nameChanged || $url !== $pl['maps_url'] || $address !== $pl['address'] || $pl['lat'] === null)
+            ? locate_place($name, $address, $url) : [$pl['lat'], $pl['lon']];
+        $pdo->prepare('UPDATE event_places SET name = ?, maps_url = ?, note = ?, address = ?, lat = ?, lon = ?, geo_tried = 1 WHERE id = ?')
+            ->execute([$name, $url, post_str('note', 300), $address, $pos[0] ?? null, $pos[1] ?? null, $id]);
         if ($nameChanged) {
             $pdo->prepare('DELETE FROM place_ratings WHERE place_id = ? AND user_id != ?')->execute([$id, (int)$pl['user_id']]);
         }
@@ -438,8 +443,24 @@ switch ($_POST['action'] ?? '') {
 
     case 'update_bio':
         $pdo->prepare('UPDATE users SET bio = ? WHERE id = ?')->execute([post_str('bio', 400), $uid]);
-        flash('Presentazione aggiornata.');
-        redirect('index.php#membri');
+        $zone = preg_replace('/\s+/u', ' ', post_str('zone', 80));
+        $back = back('index.php#membri');
+        if ($zone === '') {
+            $pdo->prepare("UPDATE users SET zone = '', zone_lat = NULL, zone_lon = NULL WHERE id = ?")->execute([$uid]);
+            flash('Profilo aggiornato.');
+        } elseif ($zone !== $me['zone'] || $me['zone_lat'] === null) {
+            $g = geocode_zone($zone);
+            if ($g) {
+                $pdo->prepare('UPDATE users SET zone = ?, zone_lat = ?, zone_lon = ? WHERE id = ?')
+                    ->execute([$zone, round($g[0], 3), round($g[1], 3), $uid]);
+                flash('Profilo aggiornato. Zona trovata: ' . $g[2] . '.');
+            } else {
+                flash('Presentazione salvata, ma non ho trovato la zona "' . $zone . '". Prova con il quartiere o una via vicina.', 'err');
+            }
+        } else {
+            flash('Profilo aggiornato.');
+        }
+        redirect($back);
 }
 
 redirect('index.php');

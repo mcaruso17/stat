@@ -33,6 +33,17 @@ con `m = 3` (voto neutro) e `C = 10`: ogni luogo parte come se avesse 10 voti da
 
 Chi ha proposto un luogo può modificarlo. Se cambia solo nota o link, i voti restano; se cambia il nome del posto, i voti degli altri si azzerano.
 
+## Metro, compromesso e zone suggerite
+
+Ogni location proposta viene localizzata con OpenStreetMap (Photon, con Nominatim come riserva; nessuna chiave API), partendo dal link Google Maps se contiene le coordinate, poi dall'indirizzo, poi dal nome. Ogni membro può indicare la propria zona (quartiere o comune) nel profilo: la posizione viene salvata arrotondata a circa 100 m.
+
+- **Metro più vicina**: dalle 74 stazioni di A, B, B1 e C in `inc/metro_roma.php` (coordinate OpenStreetMap, verificate sulla distanza tra stazioni consecutive).
+- **Tempo di viaggio stimato** da ogni zona: il migliore tra a piedi, metro (accesso, attesa, eventuale cambio) e bus/auto. Distanze in linea d'aria con fattore di deviazione. Non considera tram, treni regionali e orari: serve a confrontare, non a navigare.
+- **Compromesso**: per ogni location, media e massimo dei tempi del gruppo; costo = ½ media + ½ massimo. Vince il costo più basso. Il gruppo è chi ha detto "Partecipo" e ha la zona; se sono meno di due, tutti i membri con la zona.
+- **Zone suggerite**: le tre stazioni con il costo più basso, distanti almeno 1,2 km tra loro, con link alla ricerca di locali su Google Maps.
+
+Parametri in `inc/geo.php`. Il server deve poter fare richieste HTTPS in uscita verso `photon.komoot.io` (e `nominatim.openstreetmap.org`): su Plesk di norma è già così; se il geocoding non funziona, controllare firewall e `allow_url_fopen`/estensione cURL.
+
 ## Struttura
 
 | File | Ruolo |

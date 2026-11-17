@@ -32,3 +32,28 @@ document.querySelectorAll('.place-form').forEach(form => {
     }, 600);
   });
 });
+
+// Ordina le proposte per voti o per comodità (lato client, nessun ricaricamento).
+document.querySelectorAll('[data-sort-list]').forEach(seg => {
+  const list = document.getElementById(seg.dataset.sortList);
+  seg.addEventListener('click', e => {
+    const btn = e.target.closest('[data-sort]');
+    if (!btn || btn.classList.contains('on')) return;
+    seg.querySelectorAll('[data-sort]').forEach(b => b.classList.toggle('on', b === btn));
+    const key = btn.dataset.sort;
+    list.classList.add('sorting');
+    setTimeout(() => {
+      [...list.children].sort((a, b) => parseFloat(a.dataset[key]) - parseFloat(b.dataset[key])).forEach(li => list.appendChild(li));
+      list.classList.remove('sorting');
+    }, 150);
+  });
+});
+
+// Il profilo aperto da un evento torna a quell'evento dopo il salvataggio.
+document.addEventListener('click', e => {
+  const btn = e.target.closest('[data-open="sheet-bio"]');
+  const back = document.querySelector('#sheet-bio [data-back]');
+  if (!btn || !back) return;
+  const ev = btn.closest('.event');
+  back.value = ev ? 'index.php#' + ev.id : 'index.php#membri';
+});

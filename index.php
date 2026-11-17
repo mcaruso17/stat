@@ -21,6 +21,34 @@ $st = $pdo->prepare("$evSql WHERE e.event_date < :d ORDER BY e.event_date DESC L
 $st->execute([':uid' => $uid, ':d' => $today]);
 $past = $st->fetchAll();
 
+// Localizza (al massimo 2 per caricamento) le proposte inserite prima della geolocalizzazione.
+foreach ($pdo->query('SELECT id, name, address, maps_url FROM event_places WHERE geo_tried = 0 LIMIT 2')->fetchAll() as $g) {
+    $pos = locate_place($g['name'], $g['address'], str_starts_with($g['maps_url'], 'https://www.google.com/maps/search/') ? '' : $g['maps_url']);
+    $pdo->prepare('UPDATE event_places SET lat = ?, lon = ?, geo_tried = 1 WHERE id = ?')->execute([$pos[0] ?? null, $pos[1] ?? null, $g['id']]);
+}
+
+// Chi ha indicato la zona, e chi partecipa a ogni evento: servono per il compromesso.
+$zoneUsers = [];
+foreach ($pdo->query('SELECT id, name, zone_lat, zone_lon FROM users WHERE zone_lat IS NOT NULL')->fetchAll() as $z) {
+    $zoneUsers[(int)$z['id']] = [(float)$z['zone_lat'], (float)$z['zone_lon']];
+}
+$rsvpByEvent = [];
+foreach ($pdo->query('SELECT event_id, user_id FROM event_rsvp')->fetchAll() as $r) {
+    $rsvpByEvent[(int)$r['event_id']][] = (int)$r['user_id'];
+}
+
+/** Gruppo su cui calcolare il compromesso: chi partecipa (se almeno 2 hanno la zona), altrimenti tutti. */
+function event_people(int $eid): array
+{
+    global $zoneUsers, $rsvpByEvent;
+    $going = $rsvpByEvent[$eid] ?? [];
+    $withZone = array_values(array_intersect_key($zoneUsers, array_flip($going)));
+    if (count($withZone) >= 2) {
+        return ['people' => $withZone, 'basis' => 'going', 'missing' => count($going) - count($withZone)];
+    }
+    return ['people' => array_values($zoneUsers), 'basis' => 'all', 'missing' => 0];
+}
+
 // Luoghi proposti, raggruppati per evento
 $st = $pdo->prepare('SELECT p.*, u.name AS author,
     (SELECT COUNT(*) FROM place_ratings r WHERE r.place_id = p.id) AS n_ratings,
@@ -57,6 +85,9 @@ function place_fields(?array $pl = null): void
     </div>
     <label>Link Google Maps <small>Facoltativo. Incolla il link "Condividi" del posto per essere precisi.</small>
       <input name="maps_url" type="url" maxlength="500" placeholder="https://maps.app.goo.gl/..." value="<?= e($pl && $pl['maps_url'] !== maps_search_url($pl['name']) ? $pl['maps_url'] : '') ?>">
+    </label>
+    <label>Indirizzo <small>Facoltativo. Serve se il nome non basta a trovarlo: metro più vicina e compromesso si calcolano da qui.</small>
+      <input name="address" maxlength="160" placeholder="Es. Via dei Vascellari 29" value="<?= e($pl['address'] ?? '') ?>">
     </label>
     <label>Perché questo posto? <small>Facoltativo.</small>
       <input name="note" maxlength="300" placeholder="Prezzi, capienza, comodo dalla metro..." value="<?= e($pl['note'] ?? '') ?>">
@@ -254,18 +285,40 @@ function event_card(array $ev, int $uid, array $places, bool $isPast = false, ar
         <?php endif; ?>
       </div>
 
-      <?php date_poll($ev, $options, $voters, $isPast); ?>
+      <?php date_poll($ev, $options, $voters, $isPast);
+      // Geografia: metro più vicina e compromesso per ogni proposta, zone suggerite.
+      $grp = event_people($eid);
+      $geo = [];
+      $bestId = null;
+      foreach ($places as $pl) {
+          if ($pl['lat'] === null) continue;
+          $g = ['station' => nearest_stations((float)$pl['lat'], (float)$pl['lon'])[0]];
+          $g['cmp'] = count($grp['people']) >= 2 ? compromise($grp['people'], (float)$pl['lat'], (float)$pl['lon']) : null;
+          $geo[(int)$pl['id']] = $g;
+          if ($g['cmp'] && ($bestId === null || $g['cmp']['cost'] < $geo[$bestId]['cmp']['cost'])) $bestId = (int)$pl['id'];
+      }
+      $hasCmp = $bestId !== null && count(array_filter($geo, fn($g) => $g['cmp'])) >= 2;
+      $suggest = $isPast ? [] : suggest_points($grp['people']);
+      ?>
 
       <div class="places">
         <div class="places-head">
           <p class="places-title">Luoghi proposti<?php if ($places): ?> <span class="count"><?= count($places) ?></span><?php endif; ?></p>
-          <?= open_button('voting-help', 'Come funziona', 'linkbtn help-link', 'info') ?>
+          <div class="places-tools">
+            <?php if ($hasCmp): ?>
+            <div class="seg small" data-sort-list="pl-<?= $eid ?>" role="group" aria-label="Ordina le proposte">
+              <button type="button" class="on" data-sort="votes">Voti</button>
+              <button type="button" data-sort="cost">Comodità</button>
+            </div>
+            <?php endif; ?>
+            <?= open_button('voting-help', 'Come funziona', 'linkbtn help-link', 'info') ?>
+          </div>
         </div>
         <?php if (!$places && !$isPast): ?><p class="muted small">Nessuna proposta per ora. Sii il primo.</p><?php endif; ?>
         <?php if ($places): $sheets = ''; ?>
-        <ul class="place-list">
-          <?php foreach ($places as $pl): $chosen = $ev['location_url'] === $pl['maps_url'] && $ev['location'] === $pl['name']; $nr = (int)$pl['n_ratings']; ?>
-          <li class="place<?= $chosen ? ' chosen' : '' ?>">
+        <ul class="place-list" id="pl-<?= $eid ?>">
+          <?php foreach ($places as $i => $pl): $chosen = $ev['location_url'] === $pl['maps_url'] && $ev['location'] === $pl['name']; $nr = (int)$pl['n_ratings']; $g = $geo[(int)$pl['id']] ?? null; ?>
+          <li class="place<?= $chosen ? ' chosen' : '' ?>" data-votes="<?= $i ?>" data-cost="<?= $g && $g['cmp'] ? round($g['cmp']['cost'], 2) : 9999 ?>">
             <div class="place-score" title="Punteggio ponderato: premia i luoghi votati da più persone">
               <b><?= $nr ? fmt_num($pl['score']) : '–' ?></b><span>punti</span>
             </div>
@@ -275,6 +328,17 @@ function event_card(array $ev, int $uid, array $places, bool $isPast = false, ar
                 <?php if ($chosen): ?><span class="badge teal">Scelto</span><?php endif; ?>
               </div>
               <?php if ($pl['note']): ?><p class="place-note"><?= e($pl['note']) ?></p><?php endif; ?>
+              <div class="place-geo">
+                <?php if ($g): [$stn, $skm] = $g['station']; ?>
+                <span class="metro" title="Metro più vicina, in linea d'aria"><?= metro_badges($stn[1]) ?><?= e($stn[0]) ?> <span class="muted">· <?= fmt_km($skm) ?><?= $skm < 2 ? ', ' . fmt_min(walk_min($skm)) . ' min a piedi' : '' ?></span></span>
+                <?php if ($g['cmp']): ?>
+                <span class="cmp<?= $hasCmp && (int)$pl['id'] === $bestId ? ' best' : '' ?>" title="Tempo stimato con i mezzi per <?= $grp['basis'] === 'going' ? 'chi partecipa' : 'tutti i membri' ?> che hanno indicato la zona"><?= icon('clock') ?>≈ <?= fmt_min($g['cmp']['mean']) ?> min in media · max <?= fmt_min($g['cmp']['max']) ?></span>
+                <?php if ($hasCmp && (int)$pl['id'] === $bestId): ?><span class="badge grad">Miglior compromesso</span><?php endif; ?>
+                <?php endif; ?>
+                <?php else: ?>
+                <span class="muted">Posizione non trovata<?= can_manage($pl['user_id']) ? ': aggiungi l\'indirizzo con Modifica' : '' ?>.</span>
+                <?php endif; ?>
+              </div>
               <div class="rating">
                 <form method="post" action="action.php" class="stars" aria-label="Il tuo voto">
                   <?= csrf_field() ?>
@@ -319,7 +383,29 @@ function event_card(array $ev, int $uid, array $places, bool $isPast = false, ar
         <?= $sheets ?>
         <?php endif; ?>
 
-        <?php if (!$isPast): ?>
+        <?php if (!$isPast): global $me; ?>
+        <?php if ($suggest): ?>
+        <div class="suggest">
+          <p class="suggest-title"><?= icon('pin') ?>Le zone più comode per <?= $grp['basis'] === 'going' ? 'chi partecipa' : 'il gruppo' ?></p>
+          <ol class="suggest-list">
+            <?php foreach ($suggest as $k => $sg): $s = $sg['station']; ?>
+            <li>
+              <span class="suggest-rank"><?= $k + 1 ?></span>
+              <span class="suggest-main"><span class="suggest-name"><?= metro_badges($s[1]) ?><?= e($s[0]) ?></span>
+                <span class="meta">≈ <?= fmt_min($sg['mean']) ?> min in media · max <?= fmt_min($sg['max']) ?></span></span>
+              <a class="linkbtn" href="<?= e(maps_search_url('ristoranti vicino metro ' . $s[0] . ', Roma')) ?>" target="_blank" rel="noopener noreferrer">Cerca locali <?= icon('arrow', 'tiny') ?></a>
+            </li>
+            <?php endforeach; ?>
+          </ol>
+          <p class="meta">Calcolato su <?= count($grp['people']) ?> person<?= count($grp['people']) === 1 ? 'a' : 'e' ?> <?= $grp['basis'] === 'going' ? 'che partecipano' : 'del gruppo' ?> e hanno indicato la zona<?= $grp['missing'] ? ' (' . $grp['missing'] . ' partecipant' . ($grp['missing'] === 1 ? 'e' : 'i') . ' senza zona)' : '' ?>.</p>
+        </div>
+        <?php endif; ?>
+        <?php if ($me['zone_lat'] === null): ?>
+        <div class="zone-cta">
+          <span>Indica la tua zona: così il compromesso tiene conto anche di te.</span>
+          <?= open_button('sheet-bio', 'Indica la zona', 'btn sm secondary', 'pin') ?>
+        </div>
+        <?php endif; ?>
         <?= open_button('propose-' . $eid, 'Vuoi proporre una location?', 'propose-btn', 'pin') ?>
         <?php sheet_start('propose-' . $eid, 'Proponi una location', $ev['title']); ?>
           <form method="post" action="action.php" class="form place-form">
@@ -432,6 +518,7 @@ intro(
         <span class="avatar xl" style="background:<?= avatar_color($m['name']) ?>"><?= e(initials($m['name'])) ?></span>
         <h3><?= e($m['name']) ?></h3>
         <p class="member-tags"><?php if ($isMe): ?><span class="badge light">Tu</span><?php endif; ?><?php if ($m['is_admin']): ?><span class="badge">Admin</span><?php endif; ?></p>
+        <?php if ($m['zone']): ?><p class="member-zone"><?= icon('pin') ?><?= e($m['zone']) ?></p><?php endif; ?>
         <p class="member-bio"><?= $m['bio'] ? e($m['bio']) : '<span class="muted">' . ($isMe ? 'Non hai ancora una presentazione.' : 'Nessuna presentazione.') . '</span>' ?></p>
         <dl class="stats">
           <div><dt>Topic</dt><dd><?= (int)$m['n_topics'] ?></dd></div>
@@ -439,7 +526,7 @@ intro(
           <div><dt>File</dt><dd><?= (int)$m['n_docs'] ?></dd></div>
         </dl>
         <p class="meta">Dal <?= fmt_day((int)$m['created_at']) ?></p>
-        <?php if ($isMe): ?><?= open_button('sheet-bio', $m['bio'] ? 'Modifica presentazione' : 'Aggiungi presentazione', 'btn sm secondary', 'edit') ?><?php endif; ?>
+        <?php if ($isMe): ?><?= open_button('sheet-bio', $m['bio'] ? 'Modifica profilo' : 'Completa il profilo', 'btn sm secondary', 'edit') ?><?php endif; ?>
       </article>
       <?php endforeach; ?>
     </div>
@@ -487,10 +574,14 @@ intro(
   </form>
 <?php sheet_end(); ?>
 
-<?php sheet_start('sheet-bio', 'La tua presentazione', 'Membri'); ?>
+<?php sheet_start('sheet-bio', 'Il tuo profilo', 'Membri'); ?>
   <form method="post" action="action.php" class="form">
     <?= csrf_field() ?>
     <input type="hidden" name="action" value="update_bio">
+    <input type="hidden" name="back" value="index.php#membri" data-back>
+    <label>La tua zona <small>Quartiere o una via vicina, non serve l'indirizzo esatto. Se non sei di Roma, scrivi il comune. La vedono gli altri membri.</small>
+      <input name="zone" maxlength="80" placeholder="Es. Pigneto, Monteverde, Frascati" value="<?= e($me['zone']) ?>">
+    </label>
     <label>Due righe su di te <textarea name="bio" rows="4" maxlength="400" placeholder="Ufficio, temi di cui ti occupi, interessi..."><?= e($me['bio']) ?></textarea></label>
     <button class="btn">Salva</button>
   </form>
@@ -520,6 +611,12 @@ intro(
         </tbody>
       </table>
       <p class="muted small">Un solo entusiasta non basta: per salire in cima serve il gradimento di molti. I posti ancora senza voti stanno in fondo.</p>
+    </li>
+    <li>
+      <h3>Comodità</h3>
+      <p>Ogni proposta mostra la <b>metro più vicina</b> e quanto è comoda per il gruppo: un tempo di viaggio stimato con i mezzi da ogni zona, la <b>media</b> e il <b>caso peggiore</b>. Il <b>miglior compromesso</b> è il posto con il valore più basso di ½ media + ½ massimo: così non vince un posto comodissimo per molti ma lontanissimo per qualcuno.</p>
+      <p>Il calcolo usa chi ha detto "Partecipo" e ha indicato la zona nel profilo; se sono meno di due, usa tutti i membri con la zona. Le <b>zone più comode</b> sono le stazioni della metro dove questo valore è minimo: un buon punto da cui cercare un locale.</p>
+      <p class="muted small">I tempi sono stime: a piedi, metro (attese e cambi inclusi) o bus/auto in città, con distanze in linea d'aria. Servono a confrontare le proposte, non a sostituire il navigatore.</p>
     </li>
     <li>
       <h3>Scelta</h3>
