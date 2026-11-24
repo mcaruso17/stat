@@ -71,6 +71,10 @@ Il database si crea da solo alla prima visita, con l'evento del 2 dicembre già 
    location ~ ^/(data|inc)/ { deny all; }
    ```
 
+## Sessioni
+
+Si resta collegati 30 giorni (scadenza rinnovata a ogni visita). Le sessioni sono salvate in `data/sessions`, non nella cartella di sistema: la pulizia automatica di PHP/Plesk (24 minuti di inattività di default) altrimenti scollegava gli utenti a metà di un voto. Se la sessione scade comunque, il sito porta alla pagina di accesso (non al quiz) e, dopo l'accesso, riporta alla pagina di prima.
+
 ## Backup
 
 Basta copiare la cartella `data/` (database + uploads).

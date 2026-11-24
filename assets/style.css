@@ -225,7 +225,7 @@ dialog.sheet::backdrop { background: rgba(0, 0, 0, .32); backdrop-filter: blur(8
 .place-note { margin: 3px 0 0; font-size: .9rem; color: var(--text-2); }
 .rating { display: flex; align-items: center; gap: 4px 12px; flex-wrap: wrap; margin: 8px 0 4px; }
 .stars { display: inline-flex; flex-direction: row-reverse; }
-.star { border: 0; background: none; padding: 0 1px; cursor: pointer; color: #d2d2d7; line-height: 0; transition: color .15s, transform .15s; }
+.star { border: 0; background: none; padding: 6px 3px; margin: -6px 0; cursor: pointer; touch-action: manipulation; color: #d2d2d7; line-height: 0; transition: color .15s, transform .15s; }
 .star .ic { width: 21px; height: 21px; }
 .star.on { color: var(--sun); }
 .stars:hover .star { color: #d2d2d7; }
@@ -542,3 +542,12 @@ dialog.sheet::backdrop { background: rgba(0, 0, 0, .32); backdrop-filter: blur(8
 .request-form select { width: 200px; padding: 7px 36px 7px 12px; font-size: 14px; border-radius: 10px; }
 .request-form input { width: 170px; padding: 7px 12px; font-size: 14px; border-radius: 10px; }
 @media (max-width: 600px) { .admin-notice { left: 12px; right: 12px; bottom: 12px; max-width: none; } }
+
+/* Touch: stelle con area di tocco di ~44 px; niente effetto hover "appiccicoso" */
+@media (pointer: coarse) {
+  .star { padding: 11px 5px; margin: -11px 0; }
+  .star .ic { width: 24px; height: 24px; }
+  .stars:hover .star:not(.on) { color: #d2d2d7; }
+  .stars:hover .star.on { color: var(--sun); }
+  .stars .star:hover, .stars .star:hover ~ .star { transform: none; }
+}

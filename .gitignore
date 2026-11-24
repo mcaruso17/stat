@@ -2,3 +2,4 @@ data/*.sqlite
 data/*.sqlite-*
 data/uploads/*
 !data/uploads/.gitkeep
+data/sessions/

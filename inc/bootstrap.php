@@ -36,12 +36,26 @@ const ADMIN_PASSWORD_HASH = '$2y$12$AfETVGhqGH7pcjalkm5xp.YzOWhUCPc1n/IoL4eYYAjn
 date_default_timezone_set('Europe/Rome');
 require __DIR__ . '/geo.php';
 
-session_set_cookie_params([
+// Sessioni lunghe: si resta collegati 30 giorni (il default PHP/Plesk è 24 minuti di inattività,
+// dopo i quali un voto o un commento veniva perso). Le sessioni stanno in data/sessions, così
+// la pulizia automatica del server non le cancella prima del tempo.
+const SESSION_DAYS = 30;
+$sessDir = DATA_DIR . '/sessions';
+if (!is_dir($sessDir)) @mkdir($sessDir, 0770, true);
+if (is_dir($sessDir) && is_writable($sessDir)) session_save_path($sessDir);
+ini_set('session.gc_maxlifetime', (string)(SESSION_DAYS * 86400));
+$cookieOpts = [
     'httponly' => true,
     'samesite' => 'Lax',
     'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
-]);
+    'path' => '/',
+];
+session_set_cookie_params(['lifetime' => SESSION_DAYS * 86400] + $cookieOpts);
 session_start();
+// Scadenza "scorrevole": ogni visita rinnova i 30 giorni.
+if (!empty($_SESSION['uid']) && !headers_sent()) {
+    setcookie(session_name(), session_id(), ['expires' => time() + SESSION_DAYS * 86400] + $cookieOpts);
+}
 
 function db(): PDO
 {
@@ -286,9 +300,32 @@ function csrf_field(): string
 function csrf_check(): void
 {
     if (!hash_equals(csrf_token(), (string)($_POST['csrf'] ?? ''))) {
-        http_response_code(400);
-        exit('Sessione scaduta, torna indietro e ricarica la pagina.');
+        flash('La pagina era aperta da molto tempo: l\'abbiamo ricaricata, ripeti l\'ultima azione.', 'err');
+        redirect(safe_next((string)($_SERVER['HTTP_REFERER'] ?? '')) ?? 'index.php');
     }
+}
+
+/** Accetta solo pagine interne del sito come destinazione di ritorno. */
+function safe_next(string $url): ?string
+{
+    $p = parse_url($url);
+    if (!$p) return null;
+    if (!empty($p['host']) && $p['host'] !== ($_SERVER['HTTP_HOST'] ?? '')) return null;
+    $page = basename($p['path'] ?? '');
+    if (!in_array($page, ['index.php', 'topic.php', 'admin.php'], true)) return null;
+    return $page . (isset($p['query']) ? '?' . $p['query'] : '') . (isset($p['fragment']) ? '#' . $p['fragment'] : '');
+}
+
+/** Dopo l'accesso: segna il browser come "conosciuto" e torna dove si era. */
+function login_success(int $uid): never
+{
+    session_regenerate_id(true);
+    $_SESSION['uid'] = $uid;
+    setcookie('cs_known', '1', ['expires' => time() + 365 * 86400, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax',
+        'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off']);
+    $next = $_SESSION['next'] ?? null;
+    unset($_SESSION['next']);
+    redirect($next && safe_next($next) ? $next : 'index.php');
 }
 
 function current_user(): ?array
@@ -309,7 +346,16 @@ function require_login(): array
 {
     $u = current_user();
     if (!$u) {
-        redirect(empty($_SESSION['quiz_passed']) ? 'gate.php' : 'auth.php');
+        // Chi si è già registrato su questo browser va all'accesso, non al quiz.
+        $known = !empty($_COOKIE['cs_known']) || !empty($_SESSION['quiz_passed']);
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            flash('La sessione era scaduta: accedi di nuovo e ripeti l\'ultima azione.', 'err');
+            $next = safe_next((string)($_SERVER['HTTP_REFERER'] ?? ''));
+        } else {
+            $next = safe_next((string)($_SERVER['REQUEST_URI'] ?? ''));
+        }
+        if ($next) $_SESSION['next'] = $next;
+        redirect($known ? 'auth.php?mode=login' : 'gate.php');
     }
     return $u;
 }

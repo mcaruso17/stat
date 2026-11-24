@@ -48,10 +48,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 db()->prepare('INSERT INTO users (name, password_hash, created_at) VALUES (?, ?, ?)')
                     ->execute([$name, password_hash($pass, PASSWORD_DEFAULT), time()]);
-                session_regenerate_id(true);
-                $_SESSION['uid'] = (int)db()->lastInsertId();
                 flash('Account creato. Benvenuto/a in codice Stat!');
-                redirect('index.php');
+                login_success((int)db()->lastInsertId());
             }
         }
     } else {
@@ -59,9 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $st->execute([$name]);
         $u = $st->fetch();
         if ($u && password_verify($pass, $u['password_hash'])) {
-            session_regenerate_id(true);
-            $_SESSION['uid'] = (int)$u['id'];
-            redirect('index.php');
+            login_success((int)$u['id']);
         }
         $error = 'Nome o password non corretti.';
     }
