@@ -523,3 +523,22 @@ dialog.sheet::backdrop { background: rgba(0, 0, 0, .32); backdrop-filter: blur(8
 .place-score.strat.top { background: var(--grad); color: #fff; }
 .place-score.strat.top span { color: rgba(255, 255, 255, .85); }
 .scores .place-score { width: 64px; }
+
+/* Richieste di cambio password */
+.nav-badge { display: inline-grid; place-items: center; min-width: 17px; height: 17px; padding: 0 5px; margin-left: 5px; border-radius: 980px;
+  background: var(--coral); color: #fff; font: 700 10px var(--font); vertical-align: 1px; }
+.admin-notice { position: fixed; z-index: 50; right: 22px; bottom: 22px; display: flex; align-items: center; gap: 14px; max-width: calc(100% - 44px);
+  padding: 14px 14px 14px 16px; border-radius: var(--r-l); background: rgba(255, 255, 255, .9); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 16px 50px rgba(0, 0, 0, .18); font-size: .92rem; line-height: 1.35; animation: sheet-in .5s var(--ease) both; }
+.admin-notice-icon { flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--grad); color: #fff; }
+.auth-ok { display: inline-grid; place-items: center; width: 56px; height: 56px; border-radius: 50%; background: var(--teal); color: #fff; margin-bottom: 16px; }
+.auth-ok .ic { width: 28px; height: 28px; }
+.request { align-items: flex-start; }
+.request-main { flex: 1; min-width: 0; }
+.request-who { margin-bottom: 2px; }
+.request .small { margin-bottom: 6px; color: var(--text-2); }
+.request .warn { color: #b42d16; }
+.request-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+.request-form select { width: 200px; padding: 7px 36px 7px 12px; font-size: 14px; border-radius: 10px; }
+.request-form input { width: 170px; padding: 7px 12px; font-size: 14px; border-radius: 10px; }
+@media (max-width: 600px) { .admin-notice { left: 12px; right: 12px; bottom: 12px; max-width: none; } }

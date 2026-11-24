@@ -45,7 +45,7 @@ function page_start(string $title, bool $nav = true): void
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=12">
+<link rel="stylesheet" href="assets/style.css?v=13">
 <script>document.documentElement.classList.add('js')</script>
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 </head>
@@ -62,7 +62,7 @@ function page_start(string $title, bool $nav = true): void
       <a href="index.php#discussione">Discussione</a>
       <a href="index.php#materiali">Materiali</a>
       <a href="index.php#membri">Membri</a>
-      <?php if (!empty($u['is_admin'])): ?><a href="admin.php">Admin</a><?php endif; ?>
+      <?php if (!empty($u['is_admin'])): $pr = open_password_requests(); ?><a href="admin.php">Admin<?php if ($pr): ?><span class="nav-badge" title="Richieste di cambio password"><?= $pr ?></span><?php endif; ?></a><?php endif; ?>
     </nav>
     <div class="userbox">
       <span class="avatar xs" style="background:<?= avatar_color($u['name']) ?>"><?= e(initials($u['name'])) ?></span>
@@ -74,6 +74,14 @@ function page_start(string $title, bool $nav = true): void
 </header>
 <?php if ($f): ?>
 <div class="toast <?= e($f['type']) ?>" role="status"><?= icon($f['type'] === 'err' ? 'info' : 'check') ?><span><?= e($f['msg']) ?></span></div>
+<?php endif; ?>
+<?php if ($u && !empty($u['is_admin']) && open_password_requests() && basename($_SERVER['SCRIPT_NAME']) !== 'admin.php'): $pr = open_password_requests(); ?>
+<aside class="admin-notice" role="status" data-dismissable>
+  <span class="admin-notice-icon"><?= icon('info') ?></span>
+  <span><b><?= $pr ?> richiest<?= $pr === 1 ? 'a' : 'e' ?> di cambio password</b><br><span class="muted">Qualcuno non riesce ad accedere.</span></span>
+  <a class="btn sm" href="admin.php#richieste">Gestisci</a>
+  <button type="button" class="icon-btn" aria-label="Nascondi" onclick="this.closest('.admin-notice').remove()"><?= icon('close') ?></button>
+</aside>
 <?php endif; ?>
 <main>
 <?php

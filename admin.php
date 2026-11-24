@@ -21,6 +21,10 @@ function color_select(string $current): string
     return $out . '</select>';
 }
 
+$requests = db()->query('SELECT r.*, u.name AS user_name FROM password_requests r LEFT JOIN users u ON u.id = r.user_id
+    WHERE r.done_at IS NULL ORDER BY r.created_at')->fetchAll();
+$allUsers = db()->query('SELECT id, name FROM users ORDER BY name COLLATE NOCASE')->fetchAll();
+
 $users = db()->query('SELECT u.*,
     (SELECT COUNT(*) FROM topics t WHERE t.user_id = u.id) AS n_topics,
     (SELECT COUNT(*) FROM comments c WHERE c.user_id = u.id) AS n_comments,
@@ -32,6 +36,41 @@ page_start('Amministrazione');
 <section class="section">
   <div class="wrap">
     <?php section_head('Amministrazione', 'Gestione utenti.', 'Reimposta le password dimenticate, nomina altri admin, elimina account. Puoi anche eliminare qualsiasi contenuto direttamente dalle pagine del sito.'); ?>
+    <h3 class="admin-sub" id="richieste">Richieste di cambio password<?php if ($requests): ?> <span class="count"><?= count($requests) ?></span><?php endif; ?></h3>
+    <?php if (!$requests): ?>
+    <p class="muted small">Nessuna richiesta aperta. Quando qualcuno preme "Password dimenticata?" nella pagina di accesso, la richiesta compare qui.</p>
+    <?php else: ?>
+    <div class="panel requests">
+      <?php foreach ($requests as $r): ?>
+      <div class="row request">
+        <span class="avatar xs" style="background:<?= avatar_color($r['name']) ?>"><?= e(initials($r['name'])) ?></span>
+        <div class="request-main">
+          <p class="request-who"><b><?= e($r['name']) ?></b> <span class="meta">· <?= ago((int)$r['created_at']) ?></span></p>
+          <?php if ($r['contact']): ?><p class="small">Contatto: <?= e($r['contact']) ?></p><?php endif; ?>
+          <?php if (!$r['user_id']): ?><p class="small warn">Nessun account con questo nome esatto: scegli tu l'utente giusto, oppure archivia se è una richiesta sospetta.</p><?php endif; ?>
+          <form method="post" action="action.php" class="request-form">
+            <?= csrf_field() ?>
+            <input type="hidden" name="action" value="admin_resolve_request">
+            <input type="hidden" name="id" value="<?= (int)$r['id'] ?>">
+            <select name="user_id" required aria-label="Utente">
+              <option value="">Scegli l'utente…</option>
+              <?php foreach ($allUsers as $au): ?><option value="<?= (int)$au['id'] ?>" <?= (int)$au['id'] === (int)$r['user_id'] ? 'selected' : '' ?>><?= e($au['name']) ?></option><?php endforeach; ?>
+            </select>
+            <input name="password" placeholder="Nuova password" minlength="4" required autocomplete="off">
+            <button class="btn sm">Reimposta e chiudi</button>
+          </form>
+        </div>
+        <form method="post" action="action.php" class="inline">
+          <?= csrf_field() ?>
+          <input type="hidden" name="action" value="admin_dismiss_request">
+          <input type="hidden" name="id" value="<?= (int)$r['id'] ?>">
+          <button class="linkbtn danger">Archivia</button>
+        </form>
+      </div>
+      <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+
     <h3 class="admin-sub">Utenti</h3>
     <div class="panel table-scroll">
       <table class="admin-table">

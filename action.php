@@ -362,9 +362,38 @@ switch ($_POST['action'] ?? '') {
         } else {
             $st = $pdo->prepare('UPDATE users SET password_hash = ? WHERE id = ?');
             $st->execute([password_hash($pass, PASSWORD_DEFAULT), $id]);
+            if ($st->rowCount()) {
+                // Chiude anche le eventuali richieste aperte di questo utente.
+                $pdo->prepare('UPDATE password_requests SET done_at = ? WHERE user_id = ? AND done_at IS NULL')->execute([time(), $id]);
+            }
             flash($st->rowCount() ? 'Password aggiornata. Comunicala tu all\'utente.' : 'Utente non trovato.', $st->rowCount() ? 'ok' : 'err');
         }
         redirect('admin.php');
+
+    case 'admin_resolve_request':
+        require_admin();
+        $userId = (int)($_POST['user_id'] ?? 0);
+        $pass = (string)($_POST['password'] ?? '');
+        if (mb_strlen($pass) < 4 || !$userId) {
+            flash('Scegli l\'utente e una password di almeno 4 caratteri.', 'err');
+            redirect('admin.php#richieste');
+        }
+        $st = $pdo->prepare('UPDATE users SET password_hash = ? WHERE id = ?');
+        $st->execute([password_hash($pass, PASSWORD_DEFAULT), $userId]);
+        if ($st->rowCount()) {
+            $pdo->prepare('UPDATE password_requests SET done_at = ?, user_id = ? WHERE id = ?')->execute([time(), $userId, $id]);
+            $pdo->prepare('UPDATE password_requests SET done_at = ? WHERE user_id = ? AND done_at IS NULL')->execute([time(), $userId]);
+            flash('Password reimpostata e richiesta chiusa. Comunicala tu alla persona.');
+        } else {
+            flash('Utente non trovato.', 'err');
+        }
+        redirect('admin.php#richieste');
+
+    case 'admin_dismiss_request':
+        require_admin();
+        $pdo->prepare('UPDATE password_requests SET done_at = ? WHERE id = ?')->execute([time(), $id]);
+        flash('Richiesta archiviata.');
+        redirect('admin.php#richieste');
 
     case 'admin_toggle_admin':
         require_admin();

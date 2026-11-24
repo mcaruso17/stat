@@ -141,6 +141,14 @@ CREATE TABLE IF NOT EXISTS date_votes (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     PRIMARY KEY (option_id, user_id)
 );
+CREATE TABLE IF NOT EXISTS password_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    name TEXT NOT NULL,
+    contact TEXT NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL,
+    done_at INTEGER
+);
 CREATE TABLE IF NOT EXISTS documents (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -367,6 +375,13 @@ function category_class(string $name): string
 
 const WEEKDAYS_SHORT = ['dom', 'lun', 'mar', 'mer', 'gio', 'ven', 'sab'];
 const MAX_DATE_OPTIONS = 10;
+
+/** Richieste di cambio password ancora aperte (per l'avviso agli admin). */
+function open_password_requests(): int
+{
+    static $n = null;
+    return $n ??= (int)db()->query('SELECT COUNT(*) FROM password_requests WHERE done_at IS NULL')->fetchColumn();
+}
 
 const MONTHS = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
 const MONTHS_LONG = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto',
