@@ -316,6 +316,7 @@ function event_card(array $ev, int $uid, array $places, bool $isPast = false, ar
         </div>
         <?php if (!$places && !$isPast): ?><p class="muted small">Nessuna proposta per ora. Sii il primo.</p><?php endif; ?>
         <?php if ($places): $sheets = ''; ?>
+        <?php if (!$isPast): ?><p class="vote-hint"><?= icon('star') ?>Clicca sulle stelle per dare il tuo voto!</p><?php endif; ?>
         <ul class="place-list" id="pl-<?= $eid ?>">
           <?php foreach ($places as $i => $pl): $chosen = $ev['location_url'] === $pl['maps_url'] && $ev['location'] === $pl['name']; $nr = (int)$pl['n_ratings']; $g = $geo[(int)$pl['id']] ?? null; ?>
           <li class="place<?= $chosen ? ' chosen' : '' ?>" data-votes="<?= $i ?>" data-cost="<?= $g && $g['cmp'] ? round($g['cmp']['cost'], 2) : 9999 ?>">

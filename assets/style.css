@@ -551,3 +551,6 @@ dialog.sheet::backdrop { background: rgba(0, 0, 0, .32); backdrop-filter: blur(8
   .stars:hover .star.on { color: var(--sun); }
   .stars .star:hover, .stars .star:hover ~ .star { transform: none; }
 }
+
+.vote-hint { display: flex; align-items: center; gap: 6px; margin: -4px 0 12px; font-size: .9rem; font-weight: 500; color: var(--text-2); }
+.vote-hint .ic { color: var(--sun); width: 17px; height: 17px; }
