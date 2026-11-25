@@ -316,13 +316,24 @@ function safe_next(string $url): ?string
     return $page . (isset($p['query']) ? '?' . $p['query'] : '') . (isset($p['fragment']) ? '#' . $p['fragment'] : '');
 }
 
+/** Browser che ha già superato il quiz: va direttamente alla scelta del profilo. */
+function browser_known(): bool
+{
+    return !empty($_COOKIE['cs_known']) || !empty($_SESSION['quiz_passed']);
+}
+
+function remember_browser(): void
+{
+    setcookie('cs_known', '1', ['expires' => time() + 365 * 86400, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax',
+        'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off']);
+}
+
 /** Dopo l'accesso: segna il browser come "conosciuto" e torna dove si era. */
 function login_success(int $uid): never
 {
     session_regenerate_id(true);
     $_SESSION['uid'] = $uid;
-    setcookie('cs_known', '1', ['expires' => time() + 365 * 86400, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax',
-        'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off']);
+    remember_browser();
     $next = $_SESSION['next'] ?? null;
     unset($_SESSION['next']);
     redirect($next && safe_next($next) ? $next : 'index.php');
@@ -347,15 +358,15 @@ function require_login(): array
     $u = current_user();
     if (!$u) {
         // Chi si è già registrato su questo browser va all'accesso, non al quiz.
-        $known = !empty($_COOKIE['cs_known']) || !empty($_SESSION['quiz_passed']);
+        $known = browser_known();
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            flash('La sessione era scaduta: accedi di nuovo e ripeti l\'ultima azione.', 'err');
+            flash('La sessione era scaduta: scegli di nuovo il tuo profilo e ripeti l\'ultima azione.', 'err');
             $next = safe_next((string)($_SERVER['HTTP_REFERER'] ?? ''));
         } else {
             $next = safe_next((string)($_SERVER['REQUEST_URI'] ?? ''));
         }
         if ($next) $_SESSION['next'] = $next;
-        redirect($known ? 'auth.php?mode=login' : 'gate.php');
+        redirect($known ? 'auth.php' : 'gate.php');
     }
     return $u;
 }
@@ -421,13 +432,6 @@ function category_class(string $name): string
 
 const WEEKDAYS_SHORT = ['dom', 'lun', 'mar', 'mer', 'gio', 'ven', 'sab'];
 const MAX_DATE_OPTIONS = 10;
-
-/** Richieste di cambio password ancora aperte (per l'avviso agli admin). */
-function open_password_requests(): int
-{
-    static $n = null;
-    return $n ??= (int)db()->query('SELECT COUNT(*) FROM password_requests WHERE done_at IS NULL')->fetchColumn();
-}
 
 const MONTHS = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
 const MONTHS_LONG = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto',

@@ -4,4 +4,5 @@ require __DIR__ . '/inc/bootstrap.php';
 
 $_SESSION = [];
 session_destroy();
-header('Location: gate.php');
+// Il browser resta "conosciuto": si torna alla scelta del profilo, non al quiz.
+header('Location: ' . (empty($_COOKIE['cs_known']) ? 'gate.php' : 'auth.php'));

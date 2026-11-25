@@ -3,116 +3,117 @@ declare(strict_types=1);
 require __DIR__ . '/inc/bootstrap.php';
 require __DIR__ . '/inc/layout.php';
 
-if (current_user()) redirect('index.php');
+/*
+ * Accesso senza password: dopo il quiz si sceglie il proprio profilo da una griglia.
+ * Solo gli account admin chiedono la password, perché possono eliminare utenti e contenuti.
+ */
 
-$mode = $_GET['mode'] ?? $_POST['mode'] ?? 'login';
-$mode = in_array($mode, ['register', 'forgot'], true) ? $mode : 'login';
-$sent = false;
-if ($mode === 'register' && empty($_SESSION['quiz_passed'])) redirect('gate.php');
+if (current_user()) redirect('index.php');
+if (!browser_known()) redirect('gate.php');
 
 $error = null;
 $name = '';
+$askPassword = null; // admin scelto: serve la password
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
-    $name = preg_replace('/\s+/u', ' ', post_str('name', 60));
-    $pass = (string)($_POST['password'] ?? '');
+    $action = $_POST['do'] ?? '';
 
-    if ($mode === 'forgot') {
-        // Richiesta all'admin: niente email, la nuova password arriva di persona.
-        $_SESSION['pw_requests'] = ($_SESSION['pw_requests'] ?? 0) + 1;
-        if (mb_strlen($name) < 2) {
-            $error = 'Scrivi il nome con cui ti sei registrato.';
-        } elseif ($_SESSION['pw_requests'] > 3) {
-            $error = 'Hai già inviato diverse richieste: l\'amministratore ti contatterà.';
+    if ($action === 'pick') {
+        $st = db()->prepare('SELECT * FROM users WHERE id = ?');
+        $st->execute([(int)($_POST['user_id'] ?? 0)]);
+        $u = $st->fetch();
+        if (!$u) {
+            $error = 'Profilo non trovato.';
+        } elseif (!$u['is_admin']) {
+            login_success((int)$u['id']);
+        } elseif (isset($_POST['password'])) {
+            if (password_verify((string)$_POST['password'], $u['password_hash'])) login_success((int)$u['id']);
+            $askPassword = $u;
+            $error = 'Password non corretta.';
         } else {
-            $st = db()->prepare('SELECT 1 FROM password_requests WHERE name = ? COLLATE NOCASE AND done_at IS NULL');
-            $st->execute([$name]);
-            if (!$st->fetchColumn()) {
-                $st = db()->prepare('SELECT id FROM users WHERE name = ?');
-                $st->execute([$name]);
-                db()->prepare('INSERT INTO password_requests (user_id, name, contact, created_at) VALUES (?, ?, ?, ?)')
-                    ->execute([$st->fetchColumn() ?: null, $name, post_str('contact', 120), time()]);
-            }
-            $sent = true;
+            $askPassword = $u;
         }
-    } elseif ($mode === 'register') {
+    } elseif ($action === 'create') {
+        $name = preg_replace('/\s+/u', ' ', post_str('name', 60));
+        $st = db()->prepare('SELECT 1 FROM users WHERE name = ?');
+        $st->execute([$name]);
         if (mb_strlen($name) < 2) {
             $error = 'Il nome deve avere almeno 2 caratteri.';
-        } elseif (mb_strlen($pass) < 4) {
-            $error = 'La password deve avere almeno 4 caratteri.';
+        } elseif ($st->fetchColumn()) {
+            $error = 'Esiste già un profilo con questo nome: sceglilo dalla lista qui sopra.';
         } else {
-            $st = db()->prepare('SELECT 1 FROM users WHERE name = ?');
-            $st->execute([$name]);
-            if ($st->fetchColumn()) {
-                $error = 'Questo nome è già preso. Se sei tu, accedi.';
-            } else {
-                db()->prepare('INSERT INTO users (name, password_hash, created_at) VALUES (?, ?, ?)')
-                    ->execute([$name, password_hash($pass, PASSWORD_DEFAULT), time()]);
-                flash('Account creato. Benvenuto/a in codice Stat!');
-                login_success((int)db()->lastInsertId());
-            }
+            // Nessuna password: l'hash casuale non corrisponde a niente e serve solo se diventerà admin.
+            db()->prepare('INSERT INTO users (name, password_hash, created_at) VALUES (?, ?, ?)')
+                ->execute([$name, password_hash(bin2hex(random_bytes(16)), PASSWORD_DEFAULT), time()]);
+            flash('Profilo creato. Benvenuto/a in codice Stat!');
+            login_success((int)db()->lastInsertId());
         }
-    } else {
-        $st = db()->prepare('SELECT * FROM users WHERE name = ?');
-        $st->execute([$name]);
-        $u = $st->fetch();
-        if ($u && password_verify($pass, $u['password_hash'])) {
-            login_success((int)$u['id']);
-        }
-        $error = 'Nome o password non corretti.';
     }
 }
 
-$titles = [
-    'register' => ['Quiz superato', 'Crea il tuo account.', 'Nome e una password a tua scelta. Niente di complicato.', 'Registrati'],
-    'login' => ['Bentornato/a', 'Accedi.', 'Con il nome e la password che hai scelto.', 'Entra'],
-    'forgot' => ['Nessun problema', 'Password dimenticata.', 'Avvisiamo l\'amministratore: ti reimposta la password e te la comunica di persona.', 'Invia la richiesta'],
-];
-[$eyebrow, $title, $lead, $cta] = $titles[$mode];
-page_start($mode === 'forgot' ? 'Password dimenticata' : ($mode === 'register' ? 'Registrati' : 'Accedi'), false);
+$users = db()->query('SELECT id, name, is_admin, zone FROM users ORDER BY name COLLATE NOCASE')->fetchAll();
+
+page_start($askPassword ? 'Accesso admin' : 'Chi sei?', false);
 ?>
 <section class="auth">
   <div class="wrap">
+    <?php if ($askPassword): ?>
     <div class="tile auth-tile">
-      <?php if ($sent): ?>
-      <span class="auth-ok"><?= icon('check') ?></span>
-      <h1>Richiesta inviata.</h1>
-      <p class="muted">L'amministratore la vedrà appena entra nel sito e ti contatterà con una nuova password. Dopo, potrai accedere normalmente.</p>
-      <p class="auth-foot"><a href="auth.php?mode=login">Torna all'accesso</a></p>
-      <?php else: ?>
-      <p class="eyebrow"><?= e($eyebrow) ?></p>
-      <h1><?= e($title) ?></h1>
-      <p class="muted"><?= e($lead) ?></p>
+      <span class="avatar xl" style="background:<?= avatar_color($askPassword['name']) ?>"><?= e(initials($askPassword['name'])) ?></span>
+      <p class="eyebrow" style="margin-top:16px">Account admin</p>
+      <h1><?= e($askPassword['name']) ?></h1>
+      <p class="muted">Questo profilo può gestire utenti e contenuti, quindi serve la password.</p>
       <?php if ($error): ?><div class="alert" style="margin:18px 0 0"><?= icon('info') ?><span><?= e($error) ?></span></div><?php endif; ?>
       <form method="post" class="form">
         <?= csrf_field() ?>
-        <input type="hidden" name="mode" value="<?= $mode ?>">
-        <label>Nome e cognome
-          <input name="name" value="<?= e($name) ?>" required minlength="2" maxlength="60" autocomplete="username" autofocus>
-        </label>
-        <?php if ($mode === 'forgot'): ?>
-        <label>Come ti contattiamo? <small>Facoltativo. Telefono, email, oppure "ci vediamo in ufficio".</small>
-          <input name="contact" maxlength="120">
-        </label>
-        <?php else: ?>
-        <label>Password
-          <input type="password" name="password" required minlength="4" autocomplete="<?= $mode === 'register' ? 'new-password' : 'current-password' ?>">
-        </label>
-        <?php endif; ?>
-        <button class="btn big"><?= e($cta) ?></button>
+        <input type="hidden" name="do" value="pick">
+        <input type="hidden" name="user_id" value="<?= (int)$askPassword['id'] ?>">
+        <label>Password <input type="password" name="password" required autocomplete="current-password" autofocus></label>
+        <button class="btn big">Entra</button>
       </form>
-      <p class="auth-foot">
-        <?php if ($mode === 'register'): ?>
-          Hai già un account? <a href="auth.php?mode=login">Accedi</a>
-        <?php elseif ($mode === 'forgot'): ?>
-          Ti sei ricordato? <a href="auth.php?mode=login">Accedi</a>
-        <?php else: ?>
-          <a href="auth.php?mode=forgot">Password dimenticata?</a><br>
-          Non hai un account? <a href="gate.php">Rispondi alle domande e registrati</a>
-        <?php endif; ?>
-      </p>
-      <?php endif; ?>
+      <p class="auth-foot"><a href="auth.php">Non sei tu? Torna ai profili</a></p>
     </div>
+    <?php else: ?>
+    <div class="picker">
+      <?php section_head('Accesso', 'Chi sei?', 'Tocca il tuo profilo per entrare.'); ?>
+      <?php if ($error): ?><div class="alert"><?= icon('info') ?><span><?= e($error) ?></span></div><?php endif; ?>
+      <?php if (count($users) > 8): ?>
+      <div class="picker-search"><input type="search" placeholder="Cerca il tuo nome" aria-label="Cerca il tuo nome" data-picker-search></div>
+      <?php endif; ?>
+      <form method="post" class="picker-grid">
+        <?= csrf_field() ?>
+        <input type="hidden" name="do" value="pick">
+        <?php foreach ($users as $u): ?>
+        <button class="tile picker-card hoverable" name="user_id" value="<?= (int)$u['id'] ?>" data-name="<?= e(mb_strtolower($u['name'])) ?>">
+          <span class="avatar lg" style="background:<?= avatar_color($u['name']) ?>"><?= e(initials($u['name'])) ?></span>
+          <span class="picker-name"><?= e($u['name']) ?></span>
+          <?php if ($u['is_admin']): ?><span class="picker-lock"><?= icon('lock') ?>Admin, con password</span>
+          <?php elseif ($u['zone']): ?><span class="picker-sub"><?= e($u['zone']) ?></span><?php endif; ?>
+        </button>
+        <?php endforeach; ?>
+      </form>
+
+      <div class="tile picker-new">
+        <div>
+          <h3>Non sei nella lista?</h3>
+          <p class="muted small">Crea il tuo profilo: basta il nome.</p>
+        </div>
+        <form method="post" class="picker-new-form">
+          <?= csrf_field() ?>
+          <input type="hidden" name="do" value="create">
+          <input name="name" value="<?= e($name) ?>" required minlength="2" maxlength="60" placeholder="Nome e cognome" aria-label="Nome e cognome">
+          <button class="btn"><?= icon('plus') ?><span>Crea profilo</span></button>
+        </form>
+      </div>
+    </div>
+    <?php endif; ?>
   </div>
 </section>
+<script>
+document.querySelector('[data-picker-search]')?.addEventListener('input', e => {
+  const q = e.target.value.trim().toLowerCase();
+  document.querySelectorAll('.picker-card').forEach(c => { c.hidden = q && !c.dataset.name.includes(q); });
+});
+</script>
 <?php page_end();

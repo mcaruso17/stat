@@ -357,51 +357,34 @@ switch ($_POST['action'] ?? '') {
     case 'admin_reset_password':
         require_admin();
         $pass = (string)($_POST['password'] ?? '');
-        if (mb_strlen($pass) < 4) {
-            flash('La nuova password deve avere almeno 4 caratteri.', 'err');
+        if (mb_strlen($pass) < 6) {
+            flash('La password admin deve avere almeno 6 caratteri.', 'err');
         } else {
             $st = $pdo->prepare('UPDATE users SET password_hash = ? WHERE id = ?');
             $st->execute([password_hash($pass, PASSWORD_DEFAULT), $id]);
-            if ($st->rowCount()) {
-                // Chiude anche le eventuali richieste aperte di questo utente.
-                $pdo->prepare('UPDATE password_requests SET done_at = ? WHERE user_id = ? AND done_at IS NULL')->execute([time(), $id]);
-            }
-            flash($st->rowCount() ? 'Password aggiornata. Comunicala tu all\'utente.' : 'Utente non trovato.', $st->rowCount() ? 'ok' : 'err');
+            flash($st->rowCount() ? 'Password admin aggiornata.' : 'Utente non trovato.', $st->rowCount() ? 'ok' : 'err');
         }
         redirect('admin.php');
 
-    case 'admin_resolve_request':
-        require_admin();
-        $userId = (int)($_POST['user_id'] ?? 0);
-        $pass = (string)($_POST['password'] ?? '');
-        if (mb_strlen($pass) < 4 || !$userId) {
-            flash('Scegli l\'utente e una password di almeno 4 caratteri.', 'err');
-            redirect('admin.php#richieste');
-        }
-        $st = $pdo->prepare('UPDATE users SET password_hash = ? WHERE id = ?');
-        $st->execute([password_hash($pass, PASSWORD_DEFAULT), $userId]);
-        if ($st->rowCount()) {
-            $pdo->prepare('UPDATE password_requests SET done_at = ?, user_id = ? WHERE id = ?')->execute([time(), $userId, $id]);
-            $pdo->prepare('UPDATE password_requests SET done_at = ? WHERE user_id = ? AND done_at IS NULL')->execute([time(), $userId]);
-            flash('Password reimpostata e richiesta chiusa. Comunicala tu alla persona.');
-        } else {
-            flash('Utente non trovato.', 'err');
-        }
-        redirect('admin.php#richieste');
-
-    case 'admin_dismiss_request':
-        require_admin();
-        $pdo->prepare('UPDATE password_requests SET done_at = ? WHERE id = ?')->execute([time(), $id]);
-        flash('Richiesta archiviata.');
-        redirect('admin.php#richieste');
-
     case 'admin_toggle_admin':
         require_admin();
-        if ($id === $uid) {
+        $st = $pdo->prepare('SELECT is_admin FROM users WHERE id = ?');
+        $st->execute([$id]);
+        $isAdmin = $st->fetchColumn();
+        if ($id === $uid || $isAdmin === false) {
             flash('Non puoi togliere i permessi a te stesso.', 'err');
+        } elseif ((int)$isAdmin) {
+            $pdo->prepare('UPDATE users SET is_admin = 0 WHERE id = ?')->execute([$id]);
+            flash('Permessi di admin tolti: ora entra senza password.');
         } else {
-            $pdo->prepare('UPDATE users SET is_admin = 1 - is_admin WHERE id = ?')->execute([$id]);
-            flash('Permessi aggiornati.');
+            // Un admin deve avere una password: l'accesso al suo profilo la richiede.
+            $pass = (string)($_POST['password'] ?? '');
+            if (mb_strlen($pass) < 6) {
+                flash('Per nominare un admin scegli una password di almeno 6 caratteri, e comunicagliela.', 'err');
+            } else {
+                $pdo->prepare('UPDATE users SET is_admin = 1, password_hash = ? WHERE id = ?')->execute([password_hash($pass, PASSWORD_DEFAULT), $id]);
+                flash('Nuovo admin nominato. Comunicagli tu la password.');
+            }
         }
         redirect('admin.php');
 

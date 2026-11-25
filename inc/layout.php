@@ -20,6 +20,7 @@ const ICONS = [
     'close' => '<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>',
     'edit' => '<path d="M4 20h4.2L19.4 8.8a2 2 0 0 0 0-2.8l-1.4-1.4a2 2 0 0 0-2.8 0L4 15.8z"/>',
     'calendar' => '<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
+    'lock' => '<rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3"/>',
     'doc' => '<path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M14 3v5h5"/>',
 ];
 
@@ -45,7 +46,7 @@ function page_start(string $title, bool $nav = true): void
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=15">
+<link rel="stylesheet" href="assets/style.css?v=17">
 <script>document.documentElement.classList.add('js')</script>
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 </head>
@@ -62,26 +63,18 @@ function page_start(string $title, bool $nav = true): void
       <a href="index.php#discussione">Discussione</a>
       <a href="index.php#materiali">Materiali</a>
       <a href="index.php#membri">Membri</a>
-      <?php if (!empty($u['is_admin'])): $pr = open_password_requests(); ?><a href="admin.php">Admin<?php if ($pr): ?><span class="nav-badge" title="Richieste di cambio password"><?= $pr ?></span><?php endif; ?></a><?php endif; ?>
+      <?php if (!empty($u['is_admin'])): ?><a href="admin.php">Admin</a><?php endif; ?>
     </nav>
     <div class="userbox">
       <span class="avatar xs" style="background:<?= avatar_color($u['name']) ?>"><?= e(initials($u['name'])) ?></span>
       <span class="uname"><?= e($u['name']) ?></span>
-      <a class="nav-out" href="logout.php">Esci</a>
+      <a class="nav-out" href="logout.php" title="Esci o cambia profilo">Esci</a>
     </div>
     <?php endif; ?>
   </div>
 </header>
 <?php if ($f): ?>
 <div class="toast <?= e($f['type']) ?>" role="status"><?= icon($f['type'] === 'err' ? 'info' : 'check') ?><span><?= e($f['msg']) ?></span></div>
-<?php endif; ?>
-<?php if ($u && !empty($u['is_admin']) && open_password_requests() && basename($_SERVER['SCRIPT_NAME']) !== 'admin.php'): $pr = open_password_requests(); ?>
-<aside class="admin-notice" role="status" data-dismissable>
-  <span class="admin-notice-icon"><?= icon('info') ?></span>
-  <span><b><?= $pr ?> richiest<?= $pr === 1 ? 'a' : 'e' ?> di cambio password</b><br><span class="muted">Qualcuno non riesce ad accedere.</span></span>
-  <a class="btn sm" href="admin.php#richieste">Gestisci</a>
-  <button type="button" class="icon-btn" aria-label="Nascondi" onclick="this.closest('.admin-notice').remove()"><?= icon('close') ?></button>
-</aside>
 <?php endif; ?>
 <main>
 <?php

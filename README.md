@@ -6,10 +6,13 @@ PHP 8.1+ e SQLite, nessuna dipendenza e nessun build step.
 
 ## Come funziona l'accesso
 
-1. `gate.php`: tre domande, servono almeno 2 risposte giuste su 3.
-2. `auth.php`: registrazione con nome e password (min. 4 caratteri). Chi ha già un account accede direttamente, senza rifare il quiz.
+1. `gate.php`: tre domande, servono almeno 2 risposte giuste su 3. Il browser viene poi ricordato per un anno (cookie `cs_known`), così non si rifà il quiz.
+2. `auth.php`: si sceglie il proprio profilo da una griglia, senza password. Chi è nuovo crea il profilo scrivendo solo il nome.
+3. **Solo gli account admin chiedono la password**, perché possono eliminare utenti e contenuti.
 
 Domande e risposte stanno in `inc/bootstrap.php` (costante `QUIZ`).
+
+**Limite, scelto consapevolmente:** senza password chiunque superi il quiz può entrare con il profilo di un altro collega (non con quello di un admin). È accettabile per un gruppo di colleghi che si fidano tra loro; non usare il sito per informazioni riservate.
 
 ## Amministratore
 
@@ -17,9 +20,9 @@ L'account admin (`carusowski`) viene creato automaticamente alla prima visita, q
 
 L'admin può:
 - eliminare qualsiasi evento, topic, commento o documento;
-- da `admin.php`: reimpostare la password di un utente, nominare o rimuovere altri admin, eliminare un account con tutti i suoi contenuti.
+- da `admin.php`: cambiare la propria password, nominare altri admin (scegliendo per loro una password, che comunichi tu) o togliere i permessi, eliminare un account con tutti i suoi contenuti.
 
-Per cambiare la password admin basta usare "Reimposta" sulla propria riga in `admin.php`. L'hash nel codice serve solo alla prima creazione dell'account.
+Per cambiare la password admin basta usare "Cambia" sulla propria riga in `admin.php`. L'hash nel codice serve solo alla prima creazione dell'account.
 
 ## Classifica dei luoghi proposti
 
