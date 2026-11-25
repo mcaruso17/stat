@@ -454,25 +454,37 @@ switch ($_POST['action'] ?? '') {
         redirect('admin.php#categorie');
 
     case 'update_bio':
-        $pdo->prepare('UPDATE users SET bio = ? WHERE id = ?')->execute([post_str('bio', 400), $uid]);
-        $zone = preg_replace('/\s+/u', ' ', post_str('zone', 80));
-        $back = back('index.php#membri');
-        if ($zone === '') {
-            $pdo->prepare("UPDATE users SET zone = '', zone_lat = NULL, zone_lon = NULL WHERE id = ?")->execute([$uid]);
-            flash('Profilo aggiornato.');
-        } elseif ($zone !== $me['zone'] || $me['zone_lat'] === null) {
-            $g = geocode_zone($zone);
-            if ($g) {
-                $pdo->prepare('UPDATE users SET zone = ?, zone_lat = ?, zone_lon = ? WHERE id = ?')
-                    ->execute([$zone, round($g[0], 3), round($g[1], 3), $uid]);
-                flash('Profilo aggiornato. Zona trovata: ' . $g[2] . '.');
-            } else {
-                flash('Presentazione salvata, ma non ho trovato la zona "' . $zone . '". Prova con il quartiere o una via vicina.', 'err');
-            }
-        } else {
-            flash('Profilo aggiornato.');
+        [$msg, $type] = save_profile($me, post_str('bio', 400), post_str('zone', 80));
+        flash($msg, $type);
+        redirect(back('index.php#membri'));
+
+    case 'admin_create_user':
+        require_admin();
+        $name = preg_replace('/\s+/u', ' ', post_str('name', 60));
+        if ($err = name_error($name)) {
+            flash($err, 'err');
+            redirect('admin.php#utenti');
         }
-        redirect($back);
+        $newId = create_user($name);
+        [$msg, $type] = save_profile(['id' => $newId], post_str('bio', 400), post_str('zone', 80), 'Profilo di ' . $name . ' creato.');
+        flash($msg, $type);
+        redirect('admin.php#u' . $newId);
+
+    case 'admin_edit_user':
+        require_admin();
+        $st = $pdo->prepare('SELECT * FROM users WHERE id = ?');
+        $st->execute([$id]);
+        $target = $st->fetch();
+        if (!$target) redirect('admin.php#utenti');
+        $name = preg_replace('/\s+/u', ' ', post_str('name', 60));
+        if ($err = name_error($name, $id)) {
+            flash($err, 'err');
+            redirect('admin.php#u' . $id);
+        }
+        $pdo->prepare('UPDATE users SET name = ? WHERE id = ?')->execute([$name, $id]);
+        [$msg, $type] = save_profile($target, post_str('bio', 400), post_str('zone', 80), 'Profilo di ' . $name . ' aggiornato.');
+        flash($msg, $type);
+        redirect('admin.php#u' . $id);
 }
 
 redirect('index.php');

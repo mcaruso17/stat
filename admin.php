@@ -33,18 +33,28 @@ page_start('Amministrazione');
 <section class="section">
   <div class="wrap">
     <?php section_head('Amministrazione', 'Gestione utenti.', 'I colleghi entrano scegliendo il proprio profilo, senza password. Solo gli admin ne hanno una, perché possono eliminare utenti e contenuti.'); ?>
-    <h3 class="admin-sub">Utenti</h3>
+    <h3 class="admin-sub" id="utenti">Utenti <span class="count"><?= count($users) ?></span></h3>
+    <form method="post" action="action.php" class="tile add-user">
+      <?= csrf_field() ?>
+      <input type="hidden" name="action" value="admin_create_user">
+      <span class="add-user-title"><?= icon('plus') ?>Aggiungi un collega</span>
+      <input name="name" required minlength="2" maxlength="60" placeholder="Nome e cognome" aria-label="Nome e cognome">
+      <input name="zone" maxlength="80" placeholder="Zona (facoltativa)" aria-label="Zona">
+      <button class="btn sm">Aggiungi</button>
+    </form>
     <div class="panel table-scroll">
       <table class="admin-table">
         <thead><tr><th>Utente</th><th>Iscritto</th><th>Attività</th><th>Azioni</th></tr></thead>
         <tbody>
         <?php foreach ($users as $u): $self = (int)$u['id'] === (int)$me['id']; ?>
-          <tr>
-            <td><span class="admin-user"><span class="avatar xs" style="background:<?= avatar_color($u['name']) ?>"><?= e(initials($u['name'])) ?></span><?= e($u['name']) ?><?= $u['is_admin'] ? ' <span class="badge">Admin</span>' : '' ?></span></td>
+          <tr id="u<?= (int)$u['id'] ?>">
+            <td><span class="admin-user"><span class="avatar xs" style="background:<?= avatar_color($u['name']) ?>"><?= e(initials($u['name'])) ?></span><?= e($u['name']) ?><?= $u['is_admin'] ? ' <span class="badge">Admin</span>' : '' ?></span>
+              <?php if ($u['zone']): ?><span class="admin-zone"><?= icon('pin') ?><?= e($u['zone']) ?><?= $u['zone_lat'] === null ? ' (non trovata)' : '' ?></span><?php endif; ?></td>
             <td class="muted"><?= fmt_day((int)$u['created_at']) ?></td>
             <td class="muted"><?= (int)$u['n_topics'] ?> topic · <?= (int)$u['n_comments'] ?> commenti · <?= (int)$u['n_docs'] ?> file</td>
             <td>
               <div class="admin-actions">
+                <?= open_button('edit-user-' . (int)$u['id'], 'Modifica profilo', 'btn sm secondary', 'edit') ?>
                 <?php if ($u['is_admin']): ?>
                 <form method="post" action="action.php" class="reset">
                   <?= csrf_field() ?>
@@ -85,6 +95,20 @@ page_start('Amministrazione');
         </tbody>
       </table>
     </div>
+    <?php foreach ($users as $u): sheet_start('edit-user-' . (int)$u['id'], 'Modifica profilo', $u['name']); ?>
+      <form method="post" action="action.php" class="form">
+        <?= csrf_field() ?>
+        <input type="hidden" name="action" value="admin_edit_user">
+        <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
+        <label>Nome e cognome <input name="name" value="<?= e($u['name']) ?>" required minlength="2" maxlength="60"></label>
+        <label>Zona <small>Quartiere o comune: serve per metro e compromesso sulle location.</small>
+          <input name="zone" value="<?= e($u['zone']) ?>" maxlength="80" placeholder="Es. Pigneto, Monteverde, Frascati">
+        </label>
+        <label>Presentazione <textarea name="bio" rows="3" maxlength="400"><?= e($u['bio']) ?></textarea></label>
+        <p class="muted small">La persona vedrà le modifiche al prossimo accesso. Topic, commenti e file restano suoi anche se cambi il nome.</p>
+        <button class="btn">Salva</button>
+      </form>
+    <?php sheet_end(); endforeach; ?>
 
     <h3 class="admin-sub" id="categorie">Categorie della discussione</h3>
     <p class="muted small">Rinomina o cambia colore: i topic esistenti seguono automaticamente. Se elimini una categoria, i suoi topic passano in "<?= e(FALLBACK_CATEGORY) ?>", che non si può eliminare.</p>

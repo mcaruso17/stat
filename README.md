@@ -20,7 +20,7 @@ L'account admin (`carusowski`) viene creato automaticamente alla prima visita, q
 
 L'admin può:
 - eliminare qualsiasi evento, topic, commento o documento;
-- da `admin.php`: cambiare la propria password, nominare altri admin (scegliendo per loro una password, che comunichi tu) o togliere i permessi, eliminare un account con tutti i suoi contenuti.
+- da `admin.php`: aggiungere un collega, modificare nome, zona e presentazione di qualsiasi profilo, cambiare la propria password, nominare altri admin (scegliendo per loro una password, che comunichi tu) o togliere i permessi, eliminare un account con tutti i suoi contenuti.
 
 Per cambiare la password admin basta usare "Cambia" sulla propria riga in `admin.php`. L'hash nel codice serve solo alla prima creazione dell'account.
 

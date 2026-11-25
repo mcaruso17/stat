@@ -36,18 +36,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } elseif ($action === 'create') {
         $name = preg_replace('/\s+/u', ' ', post_str('name', 60));
-        $st = db()->prepare('SELECT 1 FROM users WHERE name = ?');
-        $st->execute([$name]);
-        if (mb_strlen($name) < 2) {
-            $error = 'Il nome deve avere almeno 2 caratteri.';
-        } elseif ($st->fetchColumn()) {
-            $error = 'Esiste già un profilo con questo nome: sceglilo dalla lista qui sopra.';
+        if ($err = name_error($name)) {
+            $error = $err . ($err[0] === 'E' ? ' Sceglilo dalla lista qui sopra.' : '');
         } else {
-            // Nessuna password: l'hash casuale non corrisponde a niente e serve solo se diventerà admin.
-            db()->prepare('INSERT INTO users (name, password_hash, created_at) VALUES (?, ?, ?)')
-                ->execute([$name, password_hash(bin2hex(random_bytes(16)), PASSWORD_DEFAULT), time()]);
             flash('Profilo creato. Benvenuto/a in codice Stat!');
-            login_success((int)db()->lastInsertId());
+            login_success(create_user($name));
         }
     }
 }

@@ -577,3 +577,11 @@ dialog.sheet::backdrop { background: rgba(0, 0, 0, .32); backdrop-filter: blur(8
 .auth-tile .avatar.xl { margin: 0 auto; }
 .auth-tile { margin: 0 auto; }
 .auth-tile .avatar.xl { display: grid; margin: 0 auto; }
+
+/* Admin: aggiunta e modifica profili */
+.add-user { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 16px 20px; margin-bottom: 14px; }
+.add-user-title { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; margin-right: 6px; }
+.add-user-title .ic { color: var(--coral); }
+.add-user input { width: 220px; padding: 8px 12px; font-size: 14px; border-radius: 10px; }
+.admin-zone { display: flex; align-items: center; gap: 4px; margin: 4px 0 0 38px; font-size: .8rem; color: var(--text-3); }
+.admin-zone .ic { width: 13px; height: 13px; }

@@ -200,17 +200,19 @@ SQL);
         // 0 = data ancora in votazione nel sondaggio
         $pdo->exec('ALTER TABLE events ADD COLUMN date_confirmed INTEGER NOT NULL DEFAULT 1');
     }
-    $st = $pdo->prepare('SELECT id FROM users WHERE name = ?');
-    $st->execute([ADMIN_NAME]);
-    $adminId = $st->fetchColumn();
-    if (!$adminId) {
-        $pdo->prepare('INSERT INTO users (name, password_hash, is_admin, created_at) VALUES (?, ?, 1, ?)')
-            ->execute([ADMIN_NAME, ADMIN_PASSWORD_HASH, time()]);
-    } elseif (!$pdo->query("SELECT v FROM meta WHERE k = 'admin_seeded'")->fetchColumn()) {
-        // Database esistente: l'account con quel nome diventa admin con la password configurata.
-        $pdo->prepare('UPDATE users SET is_admin = 1, password_hash = ? WHERE id = ?')->execute([ADMIN_PASSWORD_HASH, $adminId]);
+    // L'admin iniziale si crea una sola volta: dopo può essere rinominato senza che ne nasca un altro.
+    if (!$pdo->query("SELECT v FROM meta WHERE k = 'admin_seeded'")->fetchColumn()) {
+        $st = $pdo->prepare('SELECT id FROM users WHERE name = ?');
+        $st->execute([ADMIN_NAME]);
+        $adminId = $st->fetchColumn();
+        if (!$adminId) {
+            $pdo->prepare('INSERT INTO users (name, password_hash, is_admin, created_at) VALUES (?, ?, 1, ?)')
+                ->execute([ADMIN_NAME, ADMIN_PASSWORD_HASH, time()]);
+        } else {
+            $pdo->prepare('UPDATE users SET is_admin = 1, password_hash = ? WHERE id = ?')->execute([ADMIN_PASSWORD_HASH, $adminId]);
+        }
+        $pdo->exec("INSERT INTO meta (k, v) VALUES ('admin_seeded', '1')");
     }
-    $pdo->exec("INSERT OR IGNORE INTO meta (k, v) VALUES ('admin_seeded', '1')");
 
     if (!$pdo->query('SELECT COUNT(*) FROM categories')->fetchColumn()) {
         $ins = $pdo->prepare('INSERT INTO categories (name, color) VALUES (?, ?)');
@@ -314,6 +316,45 @@ function safe_next(string $url): ?string
     $page = basename($p['path'] ?? '');
     if (!in_array($page, ['index.php', 'topic.php', 'admin.php'], true)) return null;
     return $page . (isset($p['query']) ? '?' . $p['query'] : '') . (isset($p['fragment']) ? '#' . $p['fragment'] : '');
+}
+
+/** Nome valido e libero (escluso l'utente $exceptId): restituisce un errore o null. */
+function name_error(string $name, int $exceptId = 0): ?string
+{
+    if (mb_strlen($name) < 2) return 'Il nome deve avere almeno 2 caratteri.';
+    $st = db()->prepare('SELECT 1 FROM users WHERE name = ? AND id != ?');
+    $st->execute([$name, $exceptId]);
+    return $st->fetchColumn() ? 'Esiste già un profilo con questo nome.' : null;
+}
+
+/** Crea un profilo senza password (l'hash casuale serve solo se diventerà admin). */
+function create_user(string $name): int
+{
+    db()->prepare('INSERT INTO users (name, password_hash, created_at) VALUES (?, ?, ?)')
+        ->execute([$name, password_hash(bin2hex(random_bytes(16)), PASSWORD_DEFAULT), time()]);
+    return (int)db()->lastInsertId();
+}
+
+/**
+ * Salva presentazione e zona di un profilo; la zona viene localizzata solo se cambia.
+ * Restituisce [messaggio, tipo] per il flash.
+ */
+function save_profile(array $user, string $bio, string $zone, string $done = 'Profilo aggiornato.'): array
+{
+    $pdo = db();
+    $uid = (int)$user['id'];
+    $zone = preg_replace('/\s+/u', ' ', trim($zone));
+    $pdo->prepare('UPDATE users SET bio = ? WHERE id = ?')->execute([$bio, $uid]);
+    if ($zone === '') {
+        $pdo->prepare("UPDATE users SET zone = '', zone_lat = NULL, zone_lon = NULL WHERE id = ?")->execute([$uid]);
+        return [$done, 'ok'];
+    }
+    if ($zone === ($user['zone'] ?? '') && ($user['zone_lat'] ?? null) !== null) return [$done, 'ok'];
+    $g = geocode_zone($zone);
+    if (!$g) return [$done . ' Ma non ho trovato la zona "' . $zone . '": prova con il quartiere o una via vicina.', 'err'];
+    $pdo->prepare('UPDATE users SET zone = ?, zone_lat = ?, zone_lon = ? WHERE id = ?')
+        ->execute([$zone, round($g[0], 3), round($g[1], 3), $uid]);
+    return [$done . ' Zona trovata: ' . $g[2] . '.', 'ok'];
 }
 
 /** Browser che ha già superato il quiz: va direttamente alla scelta del profilo. */
